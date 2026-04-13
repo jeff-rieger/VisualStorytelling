@@ -327,14 +327,23 @@ def page_map_view(sid):
     )
 
     layers = [
-        # Tableau's basemap — ESRI Light Gray Canvas raster tiles
+        # CartoDB Positron — no-labels variant.
+        # Same light-gray/blue-water style as Positron but with the label
+        # tile layer removed, so country names, ocean names, and city text
+        # do not appear.  Multiple subdomains for tile load-balancing.
         {
             "below": "traces",
             "sourcetype": "raster",
-            "sourceattribution": "Esri, HERE, Garmin, FAO, NOAA, USGS",
+            "sourceattribution": (
+                '&copy; <a href="https://www.openstreetmap.org/copyright">'
+                "OpenStreetMap</a> contributors &copy; "
+                '<a href="https://carto.com/attributions">CARTO</a>'
+            ),
             "source": [
-                "https://server.arcgisonline.com/ArcGIS/rest/services"
-                "/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+                "https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
+                "https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
+                "https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
+                "https://d.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png",
             ],
         },
     ]
