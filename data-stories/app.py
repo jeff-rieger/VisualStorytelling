@@ -758,7 +758,7 @@ def page_pipeline_history(sid):
             st.dataframe(tbl.style.format("${:,.0f}"), use_container_width=True)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # MODE B — Close Date Ending Value (animated bar chart)
+    # MODE B — Close Date Ending Value (animated line chart)
     # ══════════════════════════════════════════════════════════════════════════
     else:
         st.markdown(
@@ -785,40 +785,56 @@ def page_pipeline_history(sid):
             .tolist()
         )
 
-        # Fixed y-axis range: max stacked total across all frames
-        max_stack = (
-            df.groupby(["month_label", "ENDING_CLOSE_DATE"])["ENDING_WEIGHTED_AMOUNT"]
-            .sum().max()
+        # Industries sorted descending by total weighted amount so the
+        # highest-value industry appears first in legend and hover tooltip
+        industry_order = (
+            df.groupby("industry")["ENDING_WEIGHTED_AMOUNT"]
+            .sum()
+            .sort_values(ascending=False)
+            .index.tolist()
         )
-        ytick_vals, ytick_text = _ytick_format(max_stack)
 
-        fig = px.bar(
+        # Fixed axes across all frames
+        x_min = df["ENDING_CLOSE_DATE"].min()
+        x_max = df["ENDING_CLOSE_DATE"].max()
+        max_val = df["ENDING_WEIGHTED_AMOUNT"].max()
+        ytick_vals, ytick_text = _ytick_format(max_val)
+
+        fig = px.line(
             df,
             x="ENDING_CLOSE_DATE",
             y="ENDING_WEIGHTED_AMOUNT",
             color="industry",
             animation_frame="month_label",
             color_discrete_map=colour_map,
-            category_orders={"month_label": ordered_labels},
-            labels={
-                "ENDING_CLOSE_DATE":     "Expected Close Date",
-                "ENDING_WEIGHTED_AMOUNT": "Weighted Pipeline",
-                "industry":              "Industry",
-                "month_label":           "Snapshot Month",
+            category_orders={
+                "month_label": ordered_labels,
+                "industry":    industry_order,
             },
-            range_y=[0, max_stack * 1.08],
+            labels={
+                "ENDING_CLOSE_DATE":      "Expected Close Date",
+                "ENDING_WEIGHTED_AMOUNT": "Weighted Pipeline",
+                "industry":               "Industry",
+                "month_label":            "Snapshot Month",
+            },
+            range_x=[x_min, x_max],
+            range_y=[0, max_val * 1.08],
         )
+
+        fig.update_traces(line=dict(width=2.5))
 
         fig.update_layout(
             height=560,
             margin={"l": 0, "r": 0, "t": 20, "b": 0},
+            hovermode="x unified",
             legend=dict(
                 title="Industry", orientation="v",
                 x=1.01, y=1, xanchor="left",
+                traceorder="normal",
                 bgcolor="rgba(255,255,255,0.85)",
                 bordercolor="#e0e0e0", borderwidth=1,
             ),
-            xaxis=dict(tickformat="%b '%y", showgrid=False),
+            xaxis=dict(tickformat="%b '%y", showgrid=False, range=[x_min, x_max]),
             yaxis=dict(
                 title="Weighted Pipeline",
                 tickvals=ytick_vals, ticktext=ytick_text,
@@ -846,7 +862,6 @@ def page_pipeline_history(sid):
             }],
         )
 
-        # Style the slider
         fig.layout.sliders[0].update(
             currentvalue={"prefix": "Snapshot: ", "font": {"size": 13}},
             y=-0.04,
