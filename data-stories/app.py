@@ -164,6 +164,32 @@ def load_monthly_pipeline_from_csv(sid):
 
 
 @st.cache_data(show_spinner=False)
+def load_pipeline_by_close_date(sid):
+    """
+    For the animated close-date view.
+    Returns a DataFrame with columns:
+      month_start (datetime), month_label (str), ENDING_CLOSE_DATE (datetime),
+      industry, ENDING_WEIGHTED_AMOUNT
+    Sorted chronologically so animation frames play in order.
+    """
+    pivot = load_csv(data_path(sid, "processed", "OppFieldHist_Pivot.csv"))
+    acct  = load_csv(data_path(sid, "raw", "accounts.csv"))
+
+    pivot = pivot.merge(acct[["account_id", "industry"]], left_on="ACCOUNT_ID", right_on="account_id", how="left")
+    pivot["month_start"]       = pd.to_datetime(pivot["MONTH_START"])
+    pivot["ENDING_CLOSE_DATE"] = pd.to_datetime(pivot["ENDING_CLOSE_DATE"])
+
+    agg = (
+        pivot.groupby(["month_start", "ENDING_CLOSE_DATE", "industry"])["ENDING_WEIGHTED_AMOUNT"]
+        .sum()
+        .reset_index()
+    )
+    agg = agg.sort_values(["month_start", "ENDING_CLOSE_DATE"])
+    agg["month_label"] = agg["month_start"].dt.strftime("%b %Y")
+    return agg
+
+
+@st.cache_data(show_spinner=False)
 def compute_monthly_pipeline(sid):
     """
     Replicate the opportunity_monthly_snapshot SQL logic in Python.
@@ -609,143 +635,224 @@ def page_map_view(sid):
               df["industry"].nunique() if "industry" in df.columns else "—")
 
 
+def _ytick_format(max_val):
+    """Return (tick_vals, tick_text) for a dollar y-axis."""
+    if max_val >= 1e9:
+        ticks = [i * 1e9 for i in range(0, int(max_val / 1e9) + 2)]
+        return ticks, [f"${int(v/1e9)}B" for v in ticks]
+    step_m = max(1, int(max_val / 1e6 / 5))
+    ticks = [i * step_m * 1e6 for i in range(0, int(max_val / (step_m * 1e6)) + 2)]
+    return ticks, [f"${int(v/1e6)}M" for v in ticks]
+
+
 def page_pipeline_history(sid):
 
-    st.title("Opportunity Pipeline History")
-    st.caption(f"Case study: {selected_study['title']}")
-    st.markdown(
-        "Monthly **ending weighted pipeline** per industry — each opportunity's "
-        "closing amount multiplied by its stage probability, summed by month."
-    )
+    # ── Header row ────────────────────────────────────────────────────────────
+    col_title, col_xaxis = st.columns([3, 1])
+    with col_title:
+        st.title("Opportunity Pipeline History")
+        st.caption(f"Case study: {selected_study['title']}")
+    with col_xaxis:
+        st.markdown("<br>", unsafe_allow_html=True)
+        xaxis_choice = st.selectbox(
+            "X-axis",
+            ["Month Start", "Close Date Ending Value"],
+            key="pipeline_xaxis",
+        )
 
-    source = st.radio("Data source", ["Python", "SQL"], horizontal=True, key="pipeline_source")
-
-    if source == "SQL":
-        df = load_monthly_pipeline_from_csv(sid)
-    else:
-        with st.spinner("Computing monthly pipeline…"):
-            df = compute_monthly_pipeline(sid)
-        df = df.copy()
-        df["weighted_amount"] = df["weighted_amount"] * 0.9
-
-    if df.empty:
-        st.info("No pipeline data available.")
-        return
-
-    # ── Industry colour palette (consistent ordering) ─────────────────────────
-    industries = sorted(df["industry"].dropna().unique())
-    palette = px.colors.qualitative.Set2
+    # ── Shared colour palette ─────────────────────────────────────────────────
+    acct_df   = load_csv(data_path(sid, "raw", "accounts.csv"))
+    industries = sorted(acct_df["industry"].dropna().unique())
+    palette    = px.colors.qualitative.Set2
     colour_map = {ind: palette[i % len(palette)] for i, ind in enumerate(industries)}
 
-    # ── Line chart ────────────────────────────────────────────────────────────
-    fig = go.Figure()
+    # ══════════════════════════════════════════════════════════════════════════
+    # MODE A — Month Start (line chart)
+    # ══════════════════════════════════════════════════════════════════════════
+    if xaxis_choice == "Month Start":
+        st.markdown(
+            "Monthly **ending weighted pipeline** per industry — each opportunity's "
+            "closing amount multiplied by its stage probability, summed by month."
+        )
 
-    for ind in industries:
-        sub = df[df["industry"] == ind].sort_values("month")
+        df = load_monthly_pipeline_from_csv(sid)
+        if df.empty:
+            st.info("No pipeline data available.")
+            return
+
+        fig = go.Figure()
+        for ind in industries:
+            sub = df[df["industry"] == ind].sort_values("month")
+            fig.add_trace(go.Scatter(
+                x=sub["month"],
+                y=sub["weighted_amount"],
+                mode="lines",
+                name=ind,
+                line=dict(color=colour_map[ind], width=2.5),
+                hovertemplate=(
+                    f"<b>{ind}</b><br>"
+                    "%{x|%b %Y}<br>"
+                    "Weighted pipeline: $%{y:,.0f}<extra></extra>"
+                ),
+            ))
+
+        total = df.groupby("month")["weighted_amount"].sum().reset_index()
         fig.add_trace(go.Scatter(
-            x=sub["month"],
-            y=sub["weighted_amount"],
+            x=total["month"],
+            y=total["weighted_amount"],
             mode="lines",
-            name=ind,
-            line=dict(color=colour_map[ind], width=2.5),
+            name="All Industries",
+            line=dict(color="#333333", width=1.5, dash="dot"),
             hovertemplate=(
-                f"<b>{ind}</b><br>"
+                "<b>All Industries</b><br>"
                 "%{x|%b %Y}<br>"
                 "Weighted pipeline: $%{y:,.0f}<extra></extra>"
             ),
         ))
 
-    # Total line (dashed, secondary)
-    total = df.groupby("month")["weighted_amount"].sum().reset_index()
-    fig.add_trace(go.Scatter(
-        x=total["month"],
-        y=total["weighted_amount"],
-        mode="lines",
-        name="All Industries",
-        line=dict(color="#333333", width=1.5, dash="dot"),
-        hovertemplate=(
-            "<b>All Industries</b><br>"
-            "%{x|%b %Y}<br>"
-            "Weighted pipeline: $%{y:,.0f}<extra></extra>"
-        ),
-    ))
+        ytick_vals, ytick_text = _ytick_format(total["weighted_amount"].max())
+        fig.update_layout(
+            height=520,
+            margin={"l": 0, "r": 0, "t": 20, "b": 0},
+            hovermode="x unified",
+            legend=dict(
+                title="Industry", orientation="v",
+                x=1.01, y=1, xanchor="left",
+                bgcolor="rgba(255,255,255,0.85)",
+                bordercolor="#e0e0e0", borderwidth=1,
+            ),
+            xaxis=dict(title="Month", tickformat="%b %Y", showgrid=False),
+            yaxis=dict(
+                title="Weighted Pipeline",
+                tickvals=ytick_vals, ticktext=ytick_text,
+                showgrid=True, gridcolor="#f0f0f0",
+            ),
+            plot_bgcolor="white", paper_bgcolor="white",
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Y-axis tick formatter — pick B or M scale
-    max_val = total["weighted_amount"].max()
-    if max_val >= 1e9:
-        ytick_vals = [i * 1e9 for i in range(0, int(max_val / 1e9) + 2)]
-        ytick_text = [f"${int(v/1e9)}B" for v in ytick_vals]
-    else:
-        step_m = max(1, int(max_val / 1e6 / 5))
-        ytick_vals = [i * step_m * 1e6 for i in range(0, int(max_val / (step_m * 1e6)) + 2)]
-        ytick_text = [f"${int(v/1e6)}M" for v in ytick_vals]
+        # ── Summary strip ─────────────────────────────────────────────────────
+        st.markdown("---")
+        total_by_month = total.set_index("month")["weighted_amount"]
+        latest_month   = df["month"].max()
+        latest_total   = total_by_month.get(latest_month, 0)
+        peak_month     = total_by_month.idxmax()
+        peak_val       = total_by_month.max()
+        top_industry   = df.groupby("industry")["weighted_amount"].sum().idxmax()
 
-    fig.update_layout(
-        height=520,
-        margin={"l": 0, "r": 0, "t": 20, "b": 0},
-        hovermode="x unified",
-        legend=dict(
-            title="Industry",
-            orientation="v",
-            x=1.01, y=1,
-            xanchor="left",
-            bgcolor="rgba(255,255,255,0.85)",
-            bordercolor="#e0e0e0",
-            borderwidth=1,
-        ),
-        xaxis=dict(
-            title="Month",
-            tickformat="%b %Y",
-            showgrid=False,
-        ),
-        yaxis=dict(
-            title="Weighted Pipeline",
-            tickvals=ytick_vals,
-            ticktext=ytick_text,
-            showgrid=True,
-            gridcolor="#f0f0f0",
-        ),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-    )
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Latest Month Total",
+                  f"${latest_total/1e6:.1f}M" if latest_total < 1e9 else f"${latest_total/1e9:.2f}B")
+        c2.metric("Peak Month", peak_month.strftime("%b %Y"))
+        c3.metric("Peak Pipeline",
+                  f"${peak_val/1e6:.1f}M" if peak_val < 1e9 else f"${peak_val/1e9:.2f}B")
+        c4.metric("Largest Industry", top_industry)
 
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ── Summary strip ─────────────────────────────────────────────────────────
-    st.markdown("---")
-    latest_month = df["month"].max()
-    total_by_month = total.set_index("month")["weighted_amount"]
-
-    latest_total  = total_by_month.get(latest_month, 0)
-    peak_month    = total_by_month.idxmax()
-    peak_val      = total_by_month.max()
-    top_industry  = (
-        df.groupby("industry")["weighted_amount"].sum().idxmax()
-    )
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Latest Month Total",
-              f"${latest_total/1e6:.1f}M" if latest_total < 1e9 else f"${latest_total/1e9:.2f}B")
-    c2.metric("Peak Month", peak_month.strftime("%b %Y"))
-    c3.metric("Peak Pipeline",
-              f"${peak_val/1e6:.1f}M" if peak_val < 1e9 else f"${peak_val/1e9:.2f}B")
-    c4.metric("Largest Industry", top_industry)
-
-    # ── Monthly table (collapsed) ─────────────────────────────────────────────
-    with st.expander("Monthly data table"):
-        pivot = (
-            df.pivot_table(
-                index="month", columns="industry",
-                values="weighted_amount", aggfunc="sum",
+        with st.expander("Monthly data table"):
+            tbl = (
+                df.pivot_table(index="month", columns="industry",
+                               values="weighted_amount", aggfunc="sum")
+                .fillna(0).sort_index(ascending=False)
             )
-            .fillna(0)
-            .sort_index(ascending=False)
+            tbl.index = tbl.index.strftime("%b %Y")
+            st.dataframe(tbl.style.format("${:,.0f}"), use_container_width=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # MODE B — Close Date Ending Value (animated bar chart)
+    # ══════════════════════════════════════════════════════════════════════════
+    else:
+        st.markdown(
+            "Weighted pipeline by expected close date. Each frame is one monthly snapshot — "
+            "use the play axis to animate through time."
         )
-        pivot.index = pivot.index.strftime("%b %Y")
-        st.dataframe(
-            pivot.style.format("${:,.0f}"),
-            use_container_width=True,
+
+        speed_label = st.radio(
+            "Playback speed", ["1×", "2×", "4×"],
+            horizontal=True, key="pipeline_speed",
         )
+        frame_ms = {"1×": 800, "2×": 400, "4×": 200}[speed_label]
+
+        df = load_pipeline_by_close_date(sid)
+        if df.empty:
+            st.info("No pipeline data available.")
+            return
+
+        # Ordered frame labels (chronological)
+        ordered_labels = (
+            df[["month_start", "month_label"]]
+            .drop_duplicates()
+            .sort_values("month_start")["month_label"]
+            .tolist()
+        )
+
+        # Fixed y-axis range: max stacked total across all frames
+        max_stack = (
+            df.groupby(["month_label", "ENDING_CLOSE_DATE"])["ENDING_WEIGHTED_AMOUNT"]
+            .sum().max()
+        )
+        ytick_vals, ytick_text = _ytick_format(max_stack)
+
+        fig = px.bar(
+            df,
+            x="ENDING_CLOSE_DATE",
+            y="ENDING_WEIGHTED_AMOUNT",
+            color="industry",
+            animation_frame="month_label",
+            color_discrete_map=colour_map,
+            category_orders={"month_label": ordered_labels},
+            labels={
+                "ENDING_CLOSE_DATE":     "Expected Close Date",
+                "ENDING_WEIGHTED_AMOUNT": "Weighted Pipeline",
+                "industry":              "Industry",
+                "month_label":           "Snapshot Month",
+            },
+            range_y=[0, max_stack * 1.08],
+        )
+
+        fig.update_layout(
+            height=560,
+            margin={"l": 0, "r": 0, "t": 20, "b": 0},
+            legend=dict(
+                title="Industry", orientation="v",
+                x=1.01, y=1, xanchor="left",
+                bgcolor="rgba(255,255,255,0.85)",
+                bordercolor="#e0e0e0", borderwidth=1,
+            ),
+            xaxis=dict(tickformat="%b '%y", showgrid=False),
+            yaxis=dict(
+                title="Weighted Pipeline",
+                tickvals=ytick_vals, ticktext=ytick_text,
+                showgrid=True, gridcolor="#f0f0f0",
+            ),
+            plot_bgcolor="white", paper_bgcolor="white",
+            updatemenus=[{
+                "type": "buttons",
+                "showactive": False,
+                "y": -0.12, "x": 0.5, "xanchor": "center",
+                "buttons": [
+                    {"label": "▶  Play",
+                     "method": "animate",
+                     "args": [None, {"frame": {"duration": frame_ms, "redraw": True},
+                                     "fromcurrent": True, "transition": {"duration": 0}}]},
+                    {"label": "⏭  Fast Forward",
+                     "method": "animate",
+                     "args": [None, {"frame": {"duration": max(frame_ms // 4, 50), "redraw": True},
+                                     "fromcurrent": True, "transition": {"duration": 0}}]},
+                    {"label": "⏸  Pause",
+                     "method": "animate",
+                     "args": [[None], {"frame": {"duration": 0, "redraw": False},
+                                       "mode": "immediate", "transition": {"duration": 0}}]},
+                ],
+            }],
+        )
+
+        # Style the slider
+        fig.layout.sliders[0].update(
+            currentvalue={"prefix": "Snapshot: ", "font": {"size": 13}},
+            y=-0.04,
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
 
 
 # ── Router ────────────────────────────────────────────────────────────────────
