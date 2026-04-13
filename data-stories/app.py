@@ -418,6 +418,7 @@ def page_map_view(sid):
             options=[
                 "Company Annual Revenue",
                 "Employee Headcount",
+                "Annual Revenue per Employee",
                 "All Opportunity Amounts",
                 "Won Opportunity Amounts",
                 "Open Opportunity Amounts",
@@ -460,11 +461,12 @@ def page_map_view(sid):
 
     # ── Metric config ─────────────────────────────────────────────────────────
     METRICS = {
-        "Company Annual Revenue":   ("annual_revenue",     "Annual Revenue",       "dollar"),
-        "Employee Headcount":       ("number_of_employees","Employee Headcount",    "count"),
-        "All Opportunity Amounts":  ("total_opp_amount",   "All Opportunity $",     "dollar"),
-        "Won Opportunity Amounts":  ("won_opp_amount",     "Won Opportunity $",     "dollar"),
-        "Open Opportunity Amounts": ("open_opp_amount",    "Open Opportunity $",    "dollar"),
+        "Company Annual Revenue":      ("annual_revenue",              "Annual Revenue",        "dollar"),
+        "Employee Headcount":          ("number_of_employees",         "Employee Headcount",    "count"),
+        "Annual Revenue per Employee": ("annual_revenue_per_employee", "Revenue / Employee",    "dollar"),
+        "All Opportunity Amounts":     ("total_opp_amount",            "All Opportunity $",     "dollar"),
+        "Won Opportunity Amounts":     ("won_opp_amount",              "Won Opportunity $",     "dollar"),
+        "Open Opportunity Amounts":    ("open_opp_amount",             "Open Opportunity $",    "dollar"),
     }
     metric_col, metric_title, metric_fmt = METRICS[metric_choice]
 
