@@ -273,9 +273,27 @@ def page_data_review(sid):
 
 
 def page_map_view(sid):
-    st.title("Map View")
-    st.caption(f"Case study: {selected_study['title']} — accounts by annual revenue")
 
+    # ── Header + metric selector ──────────────────────────────────────────────
+    col_title, col_metric = st.columns([3, 1])
+    with col_title:
+        st.title("Map View")
+        st.caption(f"Case study: {selected_study['title']}")
+    with col_metric:
+        st.markdown("<br>", unsafe_allow_html=True)   # nudge selector down
+        metric_choice = st.selectbox(
+            "Color & size metric",
+            options=[
+                "Company Annual Revenue",
+                "Employee Headcount",
+                "All Opportunity Amounts",
+                "Won Opportunity Amounts",
+                "Open Opportunity Amounts",
+            ],
+            key="map_metric",
+        )
+
+    # ── Load accounts ─────────────────────────────────────────────────────────
     files = list_files(sid, "raw")
     acct_files = [f for f in files if "account" in f.lower()]
     if not acct_files:
@@ -283,38 +301,84 @@ def page_map_view(sid):
         return
 
     df = load_csv(data_path(sid, "raw", acct_files[0]))
-
     required = {"latitude", "longitude", "annual_revenue", "account_name"}
     if not required.issubset(df.columns):
         st.error(f"Accounts file is missing columns: {required - set(df.columns)}")
         return
+    df = df.dropna(subset=["latitude", "longitude"])
 
-    df = df.dropna(subset=["latitude", "longitude", "annual_revenue"])
+    # ── Join opportunity aggregates ───────────────────────────────────────────
+    opp_files = [f for f in files
+                 if "opportunit" in f.lower() and "history" not in f.lower()]
+    if opp_files:
+        df_opp = load_csv(data_path(sid, "raw", opp_files[0]))
+        for col, filt in [
+            ("total_opp_amount", None),
+            ("won_opp_amount",   df_opp["status"] == "Won"),
+            ("open_opp_amount",  df_opp["status"] == "Open"),
+        ]:
+            sub = df_opp if filt is None else df_opp[filt]
+            agg = sub.groupby("account_id")["amount"].sum().rename(col)
+            df  = df.merge(agg, on="account_id", how="left")
+        df[["total_opp_amount", "won_opp_amount", "open_opp_amount"]] = (
+            df[["total_opp_amount", "won_opp_amount", "open_opp_amount"]].fillna(0)
+        )
+    else:
+        df["total_opp_amount"] = df["won_opp_amount"] = df["open_opp_amount"] = 0
 
-    # Revenue display label
-    df["revenue_label"] = df["annual_revenue"].apply(
-        lambda v: f"${v/1_000_000:.1f}M" if v < 1_000_000_000 else f"${v/1_000_000_000:.2f}B"
-    )
+    # ── Metric config ─────────────────────────────────────────────────────────
+    METRICS = {
+        "Company Annual Revenue":   ("annual_revenue",     "Annual Revenue",       "dollar"),
+        "Employee Headcount":       ("number_of_employees","Employee Headcount",    "count"),
+        "All Opportunity Amounts":  ("total_opp_amount",   "All Opportunity $",     "dollar"),
+        "Won Opportunity Amounts":  ("won_opp_amount",     "Won Opportunity $",     "dollar"),
+        "Open Opportunity Amounts": ("open_opp_amount",    "Open Opportunity $",    "dollar"),
+    }
+    metric_col, metric_title, metric_fmt = METRICS[metric_choice]
 
-    # Build colorbar ticks in billions so the legend reads "$1B" not "$1G"
-    max_b = int(df["annual_revenue"].max() / 1e9) + 1
-    step_b = max(1, max_b // 5)
-    cb_vals  = [b * 1e9 for b in range(0, max_b + 1, step_b)]
-    cb_text  = ["$0" if v == 0 else f"${int(v/1e9)}B" for v in cb_vals]
+    df = df.dropna(subset=[metric_col])
 
-    # Background: ESRI World Light Gray Canvas — the exact same tile service
-    # Tableau uses for its "Light Gray" map background. No rivers, no terrain.
-    # State borders are overlaid as a separate GeoJSON line layer sourced from
-    # Natural Earth 1:10m data (nvkelso/natural-earth-vector on GitHub).
+    # ── Value formatter ───────────────────────────────────────────────────────
+    def fmt_val(v):
+        if metric_fmt == "count":
+            return f"{int(v):,}"
+        if v >= 1_000_000_000:
+            return f"${v/1_000_000_000:.2f}B"
+        if v >= 1_000_000:
+            return f"${v/1_000_000:.1f}M"
+        if v >= 1_000:
+            return f"${v/1_000:.0f}K"
+        return f"${v:,.0f}"
+
+    df["metric_display"] = df[metric_col].apply(fmt_val)
+
+    # ── Colorbar ticks ────────────────────────────────────────────────────────
+    max_val = df[metric_col].max() or 1
+    if metric_fmt == "count":
+        step = max(1_000, round(max_val / 5 / 1_000) * 1_000)
+        cb_vals = list(range(0, int(max_val) + step, step))
+        cb_text = [f"{int(v/1_000)}K" if v >= 1_000 else str(int(v)) for v in cb_vals]
+    elif max_val >= 1e9:
+        max_b  = int(max_val / 1e9) + 1
+        step_b = max(1, max_b // 5)
+        cb_vals = [b * 1e9 for b in range(0, max_b + 1, step_b)]
+        cb_text = ["$0" if v == 0 else f"${int(v/1e9)}B" for v in cb_vals]
+    else:
+        max_m  = int(max_val / 1e6) + 1
+        step_m = max(1, max_m // 5)
+        cb_vals = [m * 1e6 for m in range(0, max_m + 1, step_m)]
+        cb_text = ["$0" if v == 0 else f"${int(v/1e6)}M" for v in cb_vals]
+
+    # ── Build map ─────────────────────────────────────────────────────────────
     us_states = load_us_states_geojson()
 
     fig = px.scatter_mapbox(
         df,
         lat="latitude",
         lon="longitude",
-        color="annual_revenue",
+        color=metric_col,
         color_continuous_scale=[[0, "#ABABAB"], [0.4, "#E07020"], [1, "#FF5500"]],
-        size="annual_revenue",
+        size=metric_col,
         size_max=18,
         zoom=3.4,
         center={"lat": 38.5, "lon": -96.5},
@@ -322,15 +386,11 @@ def page_map_view(sid):
         hover_name="account_name",
         custom_data=[
             "street_address", "city", "state",
-            "latitude", "longitude", "revenue_label", "industry",
+            "latitude", "longitude", "metric_display", "industry",
         ],
     )
 
     layers = [
-        # CartoDB Positron — no-labels variant.
-        # Same light-gray/blue-water style as Positron but with the label
-        # tile layer removed, so country names, ocean names, and city text
-        # do not appear.  Multiple subdomains for tile load-balancing.
         {
             "below": "traces",
             "sourcetype": "raster",
@@ -347,18 +407,12 @@ def page_map_view(sid):
             ],
         },
     ]
-
-    # US state borders from Natural Earth 1:10m (high-res, US-only subset)
     if us_states:
         layers.append({
-            "below":      "traces",
-            "sourcetype": "geojson",
-            "source":     us_states,
-            "type":       "line",
-            "color":      "#c0c0c0",
-            "line":       {"width": 1.2},
+            "below": "traces", "sourcetype": "geojson",
+            "source": us_states, "type": "line",
+            "color": "#c0c0c0", "line": {"width": 1.2},
         })
-
     fig.update_layout(mapbox_layers=layers)
 
     fig.update_traces(
@@ -368,16 +422,17 @@ def page_map_view(sid):
             "📍 %{customdata[0]}<br>"
             "    %{customdata[1]}, %{customdata[2]}<br>"
             "    Lat %{customdata[3]:.4f}, Lon %{customdata[4]:.4f}<br><br>"
-            "💰 %{customdata[5]}<extra></extra>"
+            f"{'👥' if metric_fmt == 'count' else '💰'} "
+            f"{metric_title}: %{{customdata[5]}}<extra></extra>"
         ),
         marker_opacity=0.85,
     )
 
     fig.update_layout(
         margin={"l": 0, "r": 0, "t": 0, "b": 0},
-        height=680,
+        height=660,
         coloraxis_colorbar=dict(
-            title="Annual Revenue",
+            title=metric_title,
             tickvals=cb_vals,
             ticktext=cb_text,
             len=0.5,
@@ -389,14 +444,15 @@ def page_map_view(sid):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Summary strip below map
+    # ── Summary strip ─────────────────────────────────────────────────────────
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Accounts", f"{len(df):,}")
-    c2.metric("Highest Revenue", df["revenue_label"][df["annual_revenue"].idxmax()])
-    c3.metric("Median Revenue",
-              f"${df['annual_revenue'].median()/1_000_000:.1f}M")
-    c4.metric("Industries", df["industry"].nunique() if "industry" in df.columns else "—")
+    c2.metric(f"Highest {metric_title}",
+              df["metric_display"].iloc[df[metric_col].values.argmax()])
+    c3.metric(f"Median {metric_title}", fmt_val(df[metric_col].median()))
+    c4.metric("Industries",
+              df["industry"].nunique() if "industry" in df.columns else "—")
 
 
 # ── Router ────────────────────────────────────────────────────────────────────
