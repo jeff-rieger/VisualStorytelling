@@ -2,6 +2,7 @@ import os
 import sys
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -125,6 +126,9 @@ with st.sidebar:
     if st.button("🗺  Map View"):
         st.session_state.page = "map_view"
         st.rerun()
+    if st.button("📈  Pipeline History"):
+        st.session_state.page = "pipeline_history"
+        st.rerun()
 
     st.markdown("---")
     study_titles = [s["title"] for s in CASE_STUDIES]
@@ -137,6 +141,124 @@ with st.sidebar:
 @st.cache_data
 def load_csv(path):
     return pd.read_csv(path)
+
+
+@st.cache_data(show_spinner=False)
+def compute_monthly_pipeline(sid):
+    """
+    Replicate the opportunity_monthly_snapshot SQL logic in Python.
+    Returns a DataFrame with columns: month, industry, weighted_amount.
+    """
+    acct = load_csv(data_path(sid, "raw", "accounts.csv"))
+    opps = load_csv(data_path(sid, "raw", "opportunities.csv"))
+    hist = load_csv(data_path(sid, "raw", "opportunity_field_history.csv"))
+
+    TODAY = pd.Timestamp("2026-04-12")
+
+    STAGE_PROB = {
+        "1 - Prospecting": 10, "2 - Scoping": 15, "3 - Engaged": 25,
+        "4 - Proposal": 60,    "5 - Negotiation": 80,
+        "6 - Closed Won": 100, "7 - Closed Lost": 0,
+    }
+
+    # Parse dates
+    opps["created_date"] = pd.to_datetime(opps["created_date"])
+    opps["close_date"]   = pd.to_datetime(opps["close_date"])
+    hist["created_date"] = pd.to_datetime(hist["created_date"])
+
+    # Active end: closed deals use close_date; open deals use TODAY
+    opps["active_end"] = opps["close_date"].where(
+        opps["status"].isin(["Won", "Lost"]), other=TODAY
+    )
+
+    # Month boundaries (first of month)
+    opps["opp_month_start"] = opps["created_date"].dt.to_period("M").dt.to_timestamp()
+    opps["opp_month_end"]   = opps["active_end"].dt.to_period("M").dt.to_timestamp()
+
+    # Cross-join opportunities with all calendar months, then filter to active range
+    all_months = pd.date_range("2021-01-01", "2026-04-01", freq="MS")
+    months_df = pd.DataFrame({"month_start": all_months, "_key": 1})
+    opps_slim = opps[["opportunity_id", "account_id",
+                       "opp_month_start", "opp_month_end"]].copy()
+    opps_slim["_key"] = 1
+
+    spine = opps_slim.merge(months_df, on="_key").drop(columns="_key")
+    spine = spine[
+        (spine["month_start"] >= spine["opp_month_start"]) &
+        (spine["month_start"] <= spine["opp_month_end"])
+    ].copy()
+
+    # ── Initial values (creation records: old_value is NaN) ──────────────────
+    is_creation = hist["old_value"].isna() | (hist["old_value"] == "")
+    initial = (
+        hist[is_creation][["opportunity_id", "field", "new_value"]]
+        .pivot(index="opportunity_id", columns="field", values="new_value")
+        .rename(columns={"StageName": "init_stage",
+                         "CloseDate": "init_close",
+                         "Amount":    "init_amount"})
+        .reset_index()
+    )
+    initial.columns.name = None
+
+    # ── Post-creation changes: last change per (opp, field, month) ────────────
+    changes = hist[~is_creation].copy()
+    changes["change_month"] = changes["created_date"].dt.to_period("M").dt.to_timestamp()
+
+    latest_chg = (
+        changes.sort_values("created_date")
+        .groupby(["opportunity_id", "field", "change_month"])["new_value"]
+        .last()
+        .reset_index()
+        .pivot_table(
+            index=["opportunity_id", "change_month"],
+            columns="field",
+            values="new_value",
+            aggfunc="last",
+        )
+        .rename(columns={"StageName": "chg_stage",
+                         "CloseDate": "chg_close",
+                         "Amount":    "chg_amount"})
+        .reset_index()
+    )
+    latest_chg.columns.name = None
+
+    # ── Join initial + changes to spine ───────────────────────────────────────
+    spine = spine.merge(initial, on="opportunity_id", how="left")
+    spine = spine.merge(
+        latest_chg,
+        left_on=["opportunity_id", "month_start"],
+        right_on=["opportunity_id", "change_month"],
+        how="left",
+    )
+
+    # ── Carry forward: ffill within each opp, fallback to initial value ───────
+    spine = spine.sort_values(["opportunity_id", "month_start"])
+    for chg_col, init_col, end_col in [
+        ("chg_stage",  "init_stage",  "ending_stage"),
+        ("chg_amount", "init_amount", "ending_amount"),
+    ]:
+        spine[end_col] = (
+            spine.groupby("opportunity_id")[chg_col]
+            .transform("ffill")
+            .fillna(spine[init_col])
+        )
+
+    # ── Compute weighted amount ───────────────────────────────────────────────
+    spine["ending_amount"] = pd.to_numeric(spine["ending_amount"], errors="coerce").fillna(0)
+    spine["ending_prob"]   = spine["ending_stage"].map(STAGE_PROB).fillna(0)
+    spine["weighted_amount"] = spine["ending_amount"] * spine["ending_prob"] / 100.0
+
+    # ── Join industry from accounts ───────────────────────────────────────────
+    spine = spine.merge(acct[["account_id", "industry"]], on="account_id", how="left")
+
+    # ── Aggregate by month + industry ────────────────────────────────────────
+    agg = (
+        spine.groupby(["month_start", "industry"])["weighted_amount"]
+        .sum()
+        .reset_index()
+        .rename(columns={"month_start": "month"})
+    )
+    return agg
 
 
 @st.cache_data(show_spinner=False)
@@ -183,7 +305,7 @@ def page_home():
     )
     st.markdown("---")
 
-    col1, col2 = st.columns(2, gap="large")
+    col1, col2, col3 = st.columns(3, gap="large")
     with col1:
         if st.button(
             "🗂 Data Review\n\nInspect raw and processed sample data tables for the "
@@ -203,6 +325,16 @@ def page_home():
             use_container_width=True,
         ):
             st.session_state.page = "map_view"
+            st.rerun()
+    with col3:
+        if st.button(
+            "📈 Pipeline History\n\nMonthly ending weighted pipeline by industry. "
+            "Tracks how opportunity stage and amount changes flow through the "
+            "forecast over time.",
+            key="home_pipeline_history",
+            use_container_width=True,
+        ):
+            st.session_state.page = "pipeline_history"
             st.rerun()
 
     st.markdown("#### Available Case Studies")
@@ -455,6 +587,138 @@ def page_map_view(sid):
               df["industry"].nunique() if "industry" in df.columns else "—")
 
 
+def page_pipeline_history(sid):
+
+    st.title("Opportunity Pipeline History")
+    st.caption(f"Case study: {selected_study['title']}")
+    st.markdown(
+        "Monthly **ending weighted pipeline** per industry — each opportunity's "
+        "closing amount multiplied by its stage probability, summed by month."
+    )
+
+    with st.spinner("Computing monthly pipeline…"):
+        df = compute_monthly_pipeline(sid)
+
+    if df.empty:
+        st.info("No pipeline data available.")
+        return
+
+    # ── Industry colour palette (consistent ordering) ─────────────────────────
+    industries = sorted(df["industry"].dropna().unique())
+    palette = px.colors.qualitative.Set2
+    colour_map = {ind: palette[i % len(palette)] for i, ind in enumerate(industries)}
+
+    # ── Line chart ────────────────────────────────────────────────────────────
+    fig = go.Figure()
+
+    for ind in industries:
+        sub = df[df["industry"] == ind].sort_values("month")
+        fig.add_trace(go.Scatter(
+            x=sub["month"],
+            y=sub["weighted_amount"],
+            mode="lines",
+            name=ind,
+            line=dict(color=colour_map[ind], width=2.5),
+            hovertemplate=(
+                f"<b>{ind}</b><br>"
+                "%{x|%b %Y}<br>"
+                "Weighted pipeline: $%{y:,.0f}<extra></extra>"
+            ),
+        ))
+
+    # Total line (dashed, secondary)
+    total = df.groupby("month")["weighted_amount"].sum().reset_index()
+    fig.add_trace(go.Scatter(
+        x=total["month"],
+        y=total["weighted_amount"],
+        mode="lines",
+        name="All Industries",
+        line=dict(color="#333333", width=1.5, dash="dot"),
+        hovertemplate=(
+            "<b>All Industries</b><br>"
+            "%{x|%b %Y}<br>"
+            "Weighted pipeline: $%{y:,.0f}<extra></extra>"
+        ),
+    ))
+
+    # Y-axis tick formatter — pick B or M scale
+    max_val = total["weighted_amount"].max()
+    if max_val >= 1e9:
+        ytick_vals = [i * 1e9 for i in range(0, int(max_val / 1e9) + 2)]
+        ytick_text = [f"${int(v/1e9)}B" for v in ytick_vals]
+    else:
+        step_m = max(1, int(max_val / 1e6 / 5))
+        ytick_vals = [i * step_m * 1e6 for i in range(0, int(max_val / (step_m * 1e6)) + 2)]
+        ytick_text = [f"${int(v/1e6)}M" for v in ytick_vals]
+
+    fig.update_layout(
+        height=520,
+        margin={"l": 0, "r": 0, "t": 20, "b": 0},
+        hovermode="x unified",
+        legend=dict(
+            title="Industry",
+            orientation="v",
+            x=1.01, y=1,
+            xanchor="left",
+            bgcolor="rgba(255,255,255,0.85)",
+            bordercolor="#e0e0e0",
+            borderwidth=1,
+        ),
+        xaxis=dict(
+            title="Month",
+            tickformat="%b %Y",
+            showgrid=False,
+        ),
+        yaxis=dict(
+            title="Weighted Pipeline",
+            tickvals=ytick_vals,
+            ticktext=ytick_text,
+            showgrid=True,
+            gridcolor="#f0f0f0",
+        ),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── Summary strip ─────────────────────────────────────────────────────────
+    st.markdown("---")
+    latest_month = df["month"].max()
+    total_by_month = total.set_index("month")["weighted_amount"]
+
+    latest_total  = total_by_month.get(latest_month, 0)
+    peak_month    = total_by_month.idxmax()
+    peak_val      = total_by_month.max()
+    top_industry  = (
+        df.groupby("industry")["weighted_amount"].sum().idxmax()
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Latest Month Total",
+              f"${latest_total/1e6:.1f}M" if latest_total < 1e9 else f"${latest_total/1e9:.2f}B")
+    c2.metric("Peak Month", peak_month.strftime("%b %Y"))
+    c3.metric("Peak Pipeline",
+              f"${peak_val/1e6:.1f}M" if peak_val < 1e9 else f"${peak_val/1e9:.2f}B")
+    c4.metric("Largest Industry", top_industry)
+
+    # ── Monthly table (collapsed) ─────────────────────────────────────────────
+    with st.expander("Monthly data table"):
+        pivot = (
+            df.pivot_table(
+                index="month", columns="industry",
+                values="weighted_amount", aggfunc="sum",
+            )
+            .fillna(0)
+            .sort_index(ascending=False)
+        )
+        pivot.index = pivot.index.strftime("%b %Y")
+        st.dataframe(
+            pivot.style.format("${:,.0f}"),
+            use_container_width=True,
+        )
+
+
 # ── Router ────────────────────────────────────────────────────────────────────
 page = st.session_state.page
 
@@ -464,5 +728,7 @@ elif page == "data_review":
     page_data_review(study_id)
 elif page == "map_view":
     page_map_view(study_id)
+elif page == "pipeline_history":
+    page_pipeline_history(study_id)
 else:
     page_home()
