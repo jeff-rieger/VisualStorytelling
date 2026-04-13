@@ -310,9 +310,28 @@ def load_forecast_vs_actual(sid):
     valid = valid[valid["month_start"] == valid["latest_snap"]]
 
     forecast = (
-        valid.groupby(["close_month", "industry"])["ENDING_WEIGHTED_AMOUNT"]
-        .sum().reset_index()
-        .rename(columns={"ENDING_WEIGHTED_AMOUNT": "forecast_amount"})
+        valid.groupby(["close_month", "industry"])
+        .agg(
+            forecast_amount=("ENDING_WEIGHTED_AMOUNT", "sum"),
+            forecast_total_amount=("ENDING_AMOUNT", "sum"),
+        )
+        .reset_index()
+    )
+    forecast["forecast_pct"] = (
+        (forecast["forecast_amount"] / forecast["forecast_total_amount"] * 100)
+        .where(forecast["forecast_total_amount"] > 0, other=0.0)
+    )
+
+    # Augment actual with lost amounts so we can compute amount-weighted win rate
+    lost = (
+        opps[opps["status"] == "Lost"]
+        .groupby(["close_month", "industry"])["amount"]
+        .sum().reset_index().rename(columns={"amount": "lost_amount"})
+    )
+    actual = actual.merge(lost, on=["close_month", "industry"], how="left").fillna(0)
+    actual["actual_pct"] = (
+        (actual["actual_amount"] / (actual["actual_amount"] + actual["lost_amount"]) * 100)
+        .where((actual["actual_amount"] + actual["lost_amount"]) > 0, other=0.0)
     )
 
     return actual, forecast
@@ -510,6 +529,38 @@ def page_home():
             use_container_width=True,
         ):
             st.session_state.page = "pipeline_history"
+            st.rerun()
+
+    col4, col5, col6 = st.columns(3, gap="large")
+    with col4:
+        if st.button(
+            "📊 Pipeline Projection\n\nForward-looking view of open opportunities "
+            "by expected close month. Stacked by industry using Amount × Probability "
+            "to show projected weighted pipeline.",
+            key="home_pipeline_projection",
+            use_container_width=True,
+        ):
+            st.session_state.page = "pipeline_projection"
+            st.rerun()
+    with col5:
+        if st.button(
+            "🏆 Won Analysis\n\nMonthly closed-won revenue (bars) and win rate "
+            "(line, secondary axis). Toggle industry breakdown to see performance "
+            "by segment or in aggregate.",
+            key="home_won_analysis",
+            use_container_width=True,
+        ):
+            st.session_state.page = "won_analysis"
+            st.rerun()
+    with col6:
+        if st.button(
+            "🎯 Forecast vs. Actual\n\nCompares weighted pipeline forecasts against "
+            "actual won revenue by close month. Toggle between dollar amounts and "
+            "win-rate %. Delta chart shows over- or under-performance.",
+            key="home_forecast_vs_actual",
+            use_container_width=True,
+        ):
+            st.session_state.page = "forecast_vs_actual"
             st.rerun()
 
     st.markdown("#### Available Case Studies")
@@ -1253,18 +1304,26 @@ def page_won_analysis(sid):
 
 def page_forecast_vs_actual(sid):
 
-    col_title, col_toggle = st.columns([3, 1])
+    col_title, col_right = st.columns([3, 1])
     with col_title:
         st.title("Forecast vs. Actual")
         st.caption(f"Case study: {selected_study['title']}")
-    with col_toggle:
+    with col_right:
         st.markdown("<br>", unsafe_allow_html=True)
-        show_industry = st.checkbox("Break out by Industry", value=False, key="fva_industry")
+        yaxis_mode    = st.radio("Y-axis", ["Amount ($)", "% Won"],
+                                 horizontal=False, key="fva_yaxis")
+        show_industry = st.checkbox("By Industry", value=False, key="fva_industry")
 
-    st.markdown(
-        "**Solid lines** = forecasted weighted pipeline (last snapshot before each close month). "
-        "**Dashed lines** = actual closed-won revenue by expected close month."
-    )
+    if yaxis_mode == "% Won":
+        st.markdown(
+            "**Solid lines** = blended forecast probability (weighted pipeline ÷ total pipeline amount). "
+            "**Dashed lines** = actual win rate (won ÷ won + lost, by amount) per expected close month."
+        )
+    else:
+        st.markdown(
+            "**Solid lines** = forecasted weighted pipeline (last snapshot before each close month). "
+            "**Dashed lines** = actual closed-won revenue by expected close month."
+        )
 
     acct_df   = load_csv(data_path(sid, "raw", "accounts.csv"))
     industries = sorted(acct_df["industry"].dropna().unique())
@@ -1276,143 +1335,191 @@ def page_forecast_vs_actual(sid):
         st.info("No data available.")
         return
 
-    # ── Pre-compute monthly aggregates for summary & delta chart ──────────
+    # ── Monthly aggregates — Amount ───────────────────────────────────────
     f_monthly = forecast.groupby("close_month")["forecast_amount"].sum().reset_index()
     a_monthly = actual.groupby("close_month")["actual_amount"].sum().reset_index()
-    delta_monthly = (
+    delta_monthly_amt = (
         f_monthly.merge(a_monthly, on="close_month", how="outer")
         .fillna(0).sort_values("close_month")
     )
-    delta_monthly["delta"] = delta_monthly["actual_amount"] - delta_monthly["forecast_amount"]
+    delta_monthly_amt["delta"] = (
+        delta_monthly_amt["actual_amount"] - delta_monthly_amt["forecast_amount"]
+    )
+
+    # ── Monthly aggregates — % Won ────────────────────────────────────────
+    f_monthly_pct = (
+        forecast.groupby("close_month")
+        .agg(total_weighted=("forecast_amount", "sum"),
+             total_amount=("forecast_total_amount", "sum"))
+        .reset_index()
+    )
+    f_monthly_pct["forecast_pct"] = (
+        (f_monthly_pct["total_weighted"] / f_monthly_pct["total_amount"] * 100)
+        .where(f_monthly_pct["total_amount"] > 0, other=0.0)
+    )
+    a_monthly_pct = (
+        actual.groupby("close_month")
+        .agg(won=("actual_amount", "sum"), lost=("lost_amount", "sum"))
+        .reset_index()
+    )
+    a_monthly_pct["actual_pct"] = (
+        (a_monthly_pct["won"] / (a_monthly_pct["won"] + a_monthly_pct["lost"]) * 100)
+        .where((a_monthly_pct["won"] + a_monthly_pct["lost"]) > 0, other=0.0)
+    )
+    delta_monthly_pct = (
+        f_monthly_pct[["close_month", "forecast_pct"]]
+        .merge(a_monthly_pct[["close_month", "actual_pct"]], on="close_month", how="outer")
+        .fillna(0).sort_values("close_month")
+    )
+    delta_monthly_pct["delta"] = (
+        delta_monthly_pct["actual_pct"] - delta_monthly_pct["forecast_pct"]
+    )
 
     all_dates = pd.concat([forecast["close_month"], actual["close_month"]])
     x_min = all_dates.min()
     x_max = all_dates.max()
 
-    all_amounts = pd.concat([forecast["forecast_amount"], actual["actual_amount"]])
-    ytick_vals, ytick_text = _ytick_format(all_amounts.max())
+    # ── Axis/label config per mode ────────────────────────────────────────
+    if yaxis_mode == "Amount ($)":
+        delta_monthly  = delta_monthly_amt
+        all_amounts    = pd.concat([forecast["forecast_amount"], actual["actual_amount"]])
+        ytick_vals, ytick_text = _ytick_format(all_amounts.max())
+        yaxis_kw       = dict(title="Amount ($)", tickvals=ytick_vals, ticktext=ytick_text,
+                              showgrid=True, gridcolor="#f0f0f0")
+        delta_yaxis_kw = dict(title="Delta ($)", showgrid=True, gridcolor="#f0f0f0",
+                              zeroline=True, zerolinecolor="#888", zerolinewidth=1.5)
+        chart_title    = "Weighted Forecast vs. Actual Won Revenue"
+        delta_header   = "#### Delta: Actual Won − Forecast"
+    else:
+        delta_monthly  = delta_monthly_pct
+        yaxis_kw       = dict(title="Win Rate (%)", range=[0, 105],
+                              ticksuffix="%", showgrid=True, gridcolor="#f0f0f0")
+        delta_yaxis_kw = dict(title="Delta (pp)", showgrid=True, gridcolor="#f0f0f0",
+                              zeroline=True, zerolinecolor="#888", zerolinewidth=1.5,
+                              ticksuffix=" pp")
+        chart_title    = "Forecast Win Probability vs. Actual Win Rate"
+        delta_header   = "#### Delta: Actual Win Rate − Forecast Probability (percentage points)"
 
-    # ── Top chart: Forecast (solid) vs. Actual (dashed) ──────────────────
+    # ── Top chart ─────────────────────────────────────────────────────────
     fig_top = go.Figure()
 
     if show_industry:
+        f_y   = "forecast_pct"  if yaxis_mode == "% Won" else "forecast_amount"
+        a_y   = "actual_pct"    if yaxis_mode == "% Won" else "actual_amount"
+        f_fmt = "%{y:.1f}%"     if yaxis_mode == "% Won" else "$%{y:,.0f}"
+        a_fmt = "%{y:.1f}%"     if yaxis_mode == "% Won" else "$%{y:,.0f}"
+        f_lbl = "Probability"   if yaxis_mode == "% Won" else "Forecast"
+        a_lbl = "Win rate"      if yaxis_mode == "% Won" else "Actual won"
+
         for ind in industries:
             f = forecast[forecast["industry"] == ind].sort_values("close_month")
             a = actual[actual["industry"] == ind].sort_values("close_month")
-            if f["forecast_amount"].sum() > 0:
+            if f[f_y].sum() > 0:
                 fig_top.add_trace(go.Scatter(
-                    x=f["close_month"], y=f["forecast_amount"],
-                    name=ind,
-                    mode="lines",
+                    x=f["close_month"], y=f[f_y],
+                    name=ind, mode="lines",
                     line=dict(color=colour_map[ind], width=2),
                     legendgroup=ind,
                     hovertemplate=(
-                        f"<b>{ind} — Forecast</b><br>"
-                        "%{x|%b %Y}<br>"
-                        "Forecast: $%{y:,.0f}<extra></extra>"
+                        f"<b>{ind} — Forecast</b><br>%{{x|%b %Y}}<br>"
+                        f"{f_lbl}: {f_fmt}<extra></extra>"
                     ),
                 ))
-            if a["actual_amount"].sum() > 0:
+            if a[a_y].sum() > 0:
                 fig_top.add_trace(go.Scatter(
-                    x=a["close_month"], y=a["actual_amount"],
-                    name=f"{ind} (Actual)",
-                    mode="lines",
+                    x=a["close_month"], y=a[a_y],
+                    name=f"{ind} (Actual)", mode="lines",
                     line=dict(color=colour_map[ind], width=2, dash="dash"),
-                    legendgroup=ind,
-                    showlegend=False,
+                    legendgroup=ind, showlegend=False,
                     hovertemplate=(
-                        f"<b>{ind} — Actual</b><br>"
-                        "%{x|%b %Y}<br>"
-                        "Actual won: $%{y:,.0f}<extra></extra>"
+                        f"<b>{ind} — Actual</b><br>%{{x|%b %Y}}<br>"
+                        f"{a_lbl}: {a_fmt}<extra></extra>"
                     ),
                 ))
     else:
-        fig_top.add_trace(go.Scatter(
-            x=f_monthly["close_month"], y=f_monthly["forecast_amount"],
-            name="Forecast",
-            mode="lines",
-            line=dict(color="#2196F3", width=2.5),
-            hovertemplate=(
-                "<b>Forecast</b><br>"
-                "%{x|%b %Y}<br>"
-                "Forecast: $%{y:,.0f}<extra></extra>"
-            ),
-        ))
-        fig_top.add_trace(go.Scatter(
-            x=a_monthly["close_month"], y=a_monthly["actual_amount"],
-            name="Actual Won",
-            mode="lines",
-            line=dict(color="#FF5722", width=2.5, dash="dash"),
-            hovertemplate=(
-                "<b>Actual Won</b><br>"
-                "%{x|%b %Y}<br>"
-                "Actual won: $%{y:,.0f}<extra></extra>"
-            ),
-        ))
+        if yaxis_mode == "Amount ($)":
+            fig_top.add_trace(go.Scatter(
+                x=f_monthly["close_month"], y=f_monthly["forecast_amount"],
+                name="Forecast", mode="lines",
+                line=dict(color="#2196F3", width=2.5),
+                hovertemplate="<b>Forecast</b><br>%{x|%b %Y}<br>$%{y:,.0f}<extra></extra>",
+            ))
+            fig_top.add_trace(go.Scatter(
+                x=a_monthly["close_month"], y=a_monthly["actual_amount"],
+                name="Actual Won", mode="lines",
+                line=dict(color="#FF5722", width=2.5, dash="dash"),
+                hovertemplate="<b>Actual Won</b><br>%{x|%b %Y}<br>$%{y:,.0f}<extra></extra>",
+            ))
+        else:
+            fig_top.add_trace(go.Scatter(
+                x=f_monthly_pct["close_month"], y=f_monthly_pct["forecast_pct"],
+                name="Forecast Probability", mode="lines",
+                line=dict(color="#2196F3", width=2.5),
+                hovertemplate="<b>Forecast Probability</b><br>%{x|%b %Y}<br>%{y:.1f}%<extra></extra>",
+            ))
+            fig_top.add_trace(go.Scatter(
+                x=a_monthly_pct["close_month"], y=a_monthly_pct["actual_pct"],
+                name="Actual Win Rate", mode="lines",
+                line=dict(color="#FF5722", width=2.5, dash="dash"),
+                hovertemplate="<b>Actual Win Rate</b><br>%{x|%b %Y}<br>%{y:.1f}%<extra></extra>",
+            ))
 
     fig_top.update_layout(
         height=400,
         margin={"l": 0, "r": 0, "t": 30, "b": 0},
         hovermode="x unified",
-        title=dict(text="Weighted Forecast vs. Actual Won Revenue", font=dict(size=14), x=0),
+        title=dict(text=chart_title, font=dict(size=14), x=0),
         legend=dict(
             title="Industry" if show_industry else None,
-            orientation="v",
-            x=1.01, y=1, xanchor="left",
+            orientation="v", x=1.01, y=1, xanchor="left",
             bgcolor="rgba(255,255,255,0.85)",
             bordercolor="#e0e0e0", borderwidth=1,
         ),
         xaxis=dict(tickformat="%b '%y", showgrid=False, range=[x_min, x_max]),
-        yaxis=dict(
-            title="Amount ($)",
-            tickvals=ytick_vals, ticktext=ytick_text,
-            showgrid=True, gridcolor="#f0f0f0",
-        ),
+        yaxis=yaxis_kw,
         plot_bgcolor="white", paper_bgcolor="white",
     )
     st.plotly_chart(fig_top, use_container_width=True)
 
-    # ── Delta chart: Actual − Forecast ────────────────────────────────────
-    st.markdown("#### Delta: Actual Won − Forecast")
-
+    # ── Delta chart ────────────────────────────────────────────────────────
+    st.markdown(delta_header)
     fig_delta = go.Figure()
 
     if show_industry:
-        f_by_ind = forecast.groupby(["close_month", "industry"])["forecast_amount"].sum().reset_index()
-        a_by_ind = actual.groupby(["close_month", "industry"])["actual_amount"].sum().reset_index()
-        delta_by_ind = (
-            f_by_ind.merge(a_by_ind, on=["close_month", "industry"], how="outer")
-            .fillna(0).sort_values("close_month")
-        )
-        delta_by_ind["delta"] = delta_by_ind["actual_amount"] - delta_by_ind["forecast_amount"]
-
+        if yaxis_mode == "Amount ($)":
+            f_by = forecast.groupby(["close_month","industry"])["forecast_amount"].sum().reset_index()
+            a_by = actual.groupby(["close_month","industry"])["actual_amount"].sum().reset_index()
+            d_by = f_by.merge(a_by, on=["close_month","industry"], how="outer").fillna(0)
+            d_by["delta"] = d_by["actual_amount"] - d_by["forecast_amount"]
+            hover_val = "Delta: $%{y:,.0f}"
+        else:
+            f_by = forecast[["close_month","industry","forecast_pct"]]
+            a_by = actual[["close_month","industry","actual_pct"]]
+            d_by = f_by.merge(a_by, on=["close_month","industry"], how="outer").fillna(0)
+            d_by["delta"] = d_by["actual_pct"] - d_by["forecast_pct"]
+            hover_val = "Delta: %{y:.1f} pp"
+        d_by = d_by.sort_values("close_month")
         for ind in industries:
-            sub = delta_by_ind[delta_by_ind["industry"] == ind]
+            sub = d_by[d_by["industry"] == ind]
             if sub["delta"].abs().sum() == 0:
                 continue
             fig_delta.add_trace(go.Bar(
-                x=sub["close_month"],
-                y=sub["delta"],
-                name=ind,
-                marker_color=colour_map[ind],
-                hovertemplate=(
-                    f"<b>{ind}</b><br>"
-                    "%{x|%b %Y}<br>"
-                    "Delta: $%{y:,.0f}<extra></extra>"
-                ),
+                x=sub["close_month"], y=sub["delta"],
+                name=ind, marker_color=colour_map[ind],
+                hovertemplate=f"<b>{ind}</b><br>%{{x|%b %Y}}<br>{hover_val}<extra></extra>",
             ))
         delta_barmode = "relative"
     else:
+        if yaxis_mode == "Amount ($)":
+            hover_val = "$%{y:,.0f}"
+        else:
+            hover_val = "%{y:.1f} pp"
         colors = ["#4CAF50" if d >= 0 else "#F44336" for d in delta_monthly["delta"]]
         fig_delta.add_trace(go.Bar(
-            x=delta_monthly["close_month"],
-            y=delta_monthly["delta"],
-            marker_color=colors,
-            name="Delta",
+            x=delta_monthly["close_month"], y=delta_monthly["delta"],
+            marker_color=colors, name="Delta",
             hovertemplate=(
-                "<b>Delta (Actual − Forecast)</b><br>"
-                "%{x|%b %Y}<br>"
-                "$%{y:,.0f}<extra></extra>"
+                f"<b>Delta (Actual − Forecast)</b><br>%{{x|%b %Y}}<br>{hover_val}<extra></extra>"
             ),
         ))
         delta_barmode = "overlay"
@@ -1425,25 +1532,20 @@ def page_forecast_vs_actual(sid):
         showlegend=show_industry,
         legend=dict(
             title="Industry" if show_industry else None,
-            orientation="v",
-            x=1.01, y=1, xanchor="left",
+            orientation="v", x=1.01, y=1, xanchor="left",
             bgcolor="rgba(255,255,255,0.85)",
             bordercolor="#e0e0e0", borderwidth=1,
         ),
         xaxis=dict(tickformat="%b '%y", showgrid=False),
-        yaxis=dict(
-            title="Delta ($)",
-            showgrid=True, gridcolor="#f0f0f0",
-            zeroline=True, zerolinecolor="#888", zerolinewidth=1.5,
-        ),
+        yaxis=delta_yaxis_kw,
         plot_bgcolor="white", paper_bgcolor="white",
     )
     st.plotly_chart(fig_delta, use_container_width=True)
 
-    # ── Summary strip ─────────────────────────────────────────────────────
+    # ── Summary strip (always in $ terms) ─────────────────────────────────
     st.markdown("---")
-    f_total  = forecast["forecast_amount"].sum()
-    a_total  = actual["actual_amount"].sum()
+    f_total     = forecast["forecast_amount"].sum()
+    a_total     = actual["actual_amount"].sum()
     delta_total = a_total - f_total
     delta_pct   = delta_total / f_total * 100 if f_total > 0 else 0
 
@@ -1455,17 +1557,14 @@ def page_forecast_vs_actual(sid):
 
     def _fmt(v):
         sign = "+" if v >= 0 else ""
-        if abs(v) >= 1e9:
-            return f"{sign}${v/1e9:.2f}B"
-        return f"{sign}${v/1e6:.1f}M"
+        return f"{sign}${v/1e9:.2f}B" if abs(v) >= 1e9 else f"{sign}${v/1e6:.1f}M"
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Forecast",
               f"${f_total/1e6:.1f}M" if f_total < 1e9 else f"${f_total/1e9:.2f}B")
     c2.metric("Total Actual Won",
               f"${a_total/1e6:.1f}M" if a_total < 1e9 else f"${a_total/1e9:.2f}B")
-    c3.metric("Overall Delta", _fmt(delta_total),
-              delta=f"{delta_pct:+.1f}% vs forecast")
+    c3.metric("Overall Delta", _fmt(delta_total), delta=f"{delta_pct:+.1f}% vs forecast")
     c4.metric("Months Beating Forecast", f"{beat_months} of {len(combined)}")
 
 
