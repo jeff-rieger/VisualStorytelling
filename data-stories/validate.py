@@ -139,6 +139,31 @@ def load_csv(path):
     return pd.read_csv(path)
 
 
+@st.cache_data(show_spinner=False)
+def load_us_states_geojson():
+    """
+    Fetch US state boundaries GeoJSON from Natural Earth data hosted on
+    GitHub (nvkelso/natural-earth-vector).  Cached for the session so it
+    is only downloaded once.
+    """
+    import json, urllib.request
+    url = (
+        "https://raw.githubusercontent.com/nvkelso/natural-earth-vector"
+        "/master/geojson/ne_10m_admin_1_states_provinces_lakes.geojson"
+    )
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            data = json.loads(r.read().decode())
+        # Keep only US features to stay lightweight
+        data["features"] = [
+            f for f in data["features"]
+            if f.get("properties", {}).get("iso_a2") == "US"
+        ]
+        return data
+    except Exception:
+        return None
+
+
 def data_path(sid, tier, filename):
     return os.path.join(os.path.dirname(__file__), "case-studies", sid, "data", tier, filename)
 
@@ -277,13 +302,13 @@ def page_map_view(sid):
     cb_vals  = [b * 1e9 for b in range(0, max_b + 1, step_b)]
     cb_text  = ["$0" if v == 0 else f"${int(v/1e9)}B" for v in cb_vals]
 
-    # Natural Earth vector data (naturalearthdata.com) — the same source
-    # used by ESRI, Mapbox, and CartoDB.  Gives full control over every
-    # layer so we can precisely match the desired look:
-    #   • Gray land fill, light-blue ocean + major lakes (Great Lakes etc.)
-    #   • Medium-gray US state borders + country borders
-    #   • No rivers, no labels, Canada/Mexico in frame but unlabeled
-    fig = px.scatter_geo(
+    # Background: ESRI World Light Gray Canvas — the exact same tile service
+    # Tableau uses for its "Light Gray" map background. No rivers, no terrain.
+    # State borders are overlaid as a separate GeoJSON line layer sourced from
+    # Natural Earth 1:10m data (nvkelso/natural-earth-vector on GitHub).
+    us_states = load_us_states_geojson()
+
+    fig = px.scatter_mapbox(
         df,
         lat="latitude",
         lon="longitude",
@@ -291,6 +316,9 @@ def page_map_view(sid):
         color_continuous_scale=[[0, "#ABABAB"], [0.4, "#E07020"], [1, "#FF5500"]],
         size="annual_revenue",
         size_max=18,
+        zoom=3.4,
+        center={"lat": 38.5, "lon": -96.5},
+        mapbox_style="white-bg",
         hover_name="account_name",
         custom_data=[
             "street_address", "city", "state",
@@ -298,46 +326,31 @@ def page_map_view(sid):
         ],
     )
 
-    fig.update_geos(
-        projection_type="mercator",
+    layers = [
+        # Tableau's basemap — ESRI Light Gray Canvas raster tiles
+        {
+            "below": "traces",
+            "sourcetype": "raster",
+            "sourceattribution": "Esri, HERE, Garmin, FAO, NOAA, USGS",
+            "source": [
+                "https://server.arcgisonline.com/ArcGIS/rest/services"
+                "/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+            ],
+        },
+    ]
 
-        # Viewport — continental US + Canada + Mexico + both coasts
-        lataxis_range=[18, 61],
-        lonaxis_range=[-136, -58],
+    # US state borders from Natural Earth 1:10m (high-res, US-only subset)
+    if us_states:
+        layers.append({
+            "below":      "traces",
+            "sourcetype": "geojson",
+            "source":     us_states,
+            "type":       "line",
+            "color":      "#c0c0c0",
+            "line":       {"width": 1.2},
+        })
 
-        # Land — medium gray fill
-        showland=True,
-        landcolor="#cccccc",
-
-        # Water — light blue (oceans and major lakes like the Great Lakes)
-        showocean=True,
-        oceancolor="#b0cfe0",
-        showlakes=True,
-        lakecolor="#b0cfe0",
-
-        # Coastlines
-        showcoastlines=True,
-        coastlinecolor="#777777",
-        coastlinewidth=0.8,
-
-        # US state borders — medium gray, clearly visible
-        showsubunits=True,
-        subunitcolor="#888888",
-        subunitwidth=0.7,
-
-        # Country borders — slightly darker / heavier than state lines
-        showcountries=True,
-        countrycolor="#555555",
-        countrywidth=1.2,
-
-        # No rivers at all
-        showrivers=False,
-
-        # 50 m Natural Earth resolution for crisp borders
-        resolution=50,
-        showframe=False,
-        bgcolor="#e8e8e8",   # outer canvas matches land tone
-    )
+    fig.update_layout(mapbox_layers=layers)
 
     fig.update_traces(
         hovertemplate=(
