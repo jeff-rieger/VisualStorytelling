@@ -144,6 +144,26 @@ def load_csv(path):
 
 
 @st.cache_data(show_spinner=False)
+def load_monthly_pipeline_from_csv(sid):
+    """
+    Load pre-computed pipeline data from OppFieldHist_Pivot.csv (SQL output).
+    Returns a DataFrame with columns: month, industry, weighted_amount.
+    """
+    pivot = load_csv(data_path(sid, "processed", "OppFieldHist_Pivot.csv"))
+    acct  = load_csv(data_path(sid, "raw", "accounts.csv"))
+
+    pivot["month"] = pd.to_datetime(pivot["MONTH_START"])
+    pivot = pivot.merge(acct[["account_id", "industry"]], left_on="ACCOUNT_ID", right_on="account_id", how="left")
+
+    return (
+        pivot.groupby(["month", "industry"])["ENDING_WEIGHTED_AMOUNT"]
+        .sum()
+        .reset_index()
+        .rename(columns={"ENDING_WEIGHTED_AMOUNT": "weighted_amount"})
+    )
+
+
+@st.cache_data(show_spinner=False)
 def compute_monthly_pipeline(sid):
     """
     Replicate the opportunity_monthly_snapshot SQL logic in Python.
@@ -598,8 +618,13 @@ def page_pipeline_history(sid):
         "closing amount multiplied by its stage probability, summed by month."
     )
 
-    with st.spinner("Computing monthly pipeline…"):
-        df = compute_monthly_pipeline(sid)
+    source = st.radio("Data source", ["Python", "SQL"], horizontal=True, key="pipeline_source")
+
+    if source == "SQL":
+        df = load_monthly_pipeline_from_csv(sid)
+    else:
+        with st.spinner("Computing monthly pipeline…"):
+            df = compute_monthly_pipeline(sid)
 
     if df.empty:
         st.info("No pipeline data available.")
