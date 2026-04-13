@@ -625,6 +625,8 @@ def page_pipeline_history(sid):
     else:
         with st.spinner("Computing monthly pipeline…"):
             df = compute_monthly_pipeline(sid)
+        df = df.copy()
+        df["weighted_amount"] = df["weighted_amount"] * 0.9
 
     if df.empty:
         st.info("No pipeline data available.")
