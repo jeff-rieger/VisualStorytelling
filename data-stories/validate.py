@@ -271,7 +271,13 @@ def page_map_view(sid):
         lambda v: f"${v/1_000_000:.1f}M" if v < 1_000_000_000 else f"${v/1_000_000_000:.2f}B"
     )
 
-    fig = px.scatter_mapbox(
+    # Build colorbar ticks in billions so the legend reads "$1B" not "$1G"
+    max_b = int(df["annual_revenue"].max() / 1e9) + 1
+    step_b = max(1, max_b // 5)
+    cb_vals  = [b * 1e9 for b in range(0, max_b + 1, step_b)]
+    cb_text  = ["$0" if v == 0 else f"${int(v/1e9)}B" for v in cb_vals]
+
+    fig = px.scatter_geo(
         df,
         lat="latitude",
         lon="longitude",
@@ -279,14 +285,28 @@ def page_map_view(sid):
         color_continuous_scale=[[0, "#ABABAB"], [0.4, "#E07020"], [1, "#FF5500"]],
         size="annual_revenue",
         size_max=18,
-        zoom=3.4,
-        center={"lat": 38.5, "lon": -96.5},
-        mapbox_style="carto-positron",
+        scope="usa",
         hover_name="account_name",
         custom_data=[
             "street_address", "city", "state",
             "latitude", "longitude", "revenue_label", "industry",
         ],
+    )
+
+    fig.update_geos(
+        scope="usa",
+        showland=True,
+        landcolor="#f5f5f5",
+        showcoastlines=True,
+        coastlinecolor="#aaaaaa",
+        coastlinewidth=0.8,
+        showsubunits=True,       # state outlines
+        subunitcolor="#bbbbbb",
+        subunitwidth=0.5,
+        showrivers=False,
+        showlakes=False,
+        showframe=False,
+        bgcolor="white",
     )
 
     fig.update_traces(
@@ -306,8 +326,8 @@ def page_map_view(sid):
         height=680,
         coloraxis_colorbar=dict(
             title="Annual Revenue",
-            tickprefix="$",
-            tickformat=".2s",
+            tickvals=cb_vals,
+            ticktext=cb_text,
             len=0.5,
             thickness=14,
             bgcolor="rgba(255,255,255,0.85)",
