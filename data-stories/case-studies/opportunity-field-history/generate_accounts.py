@@ -216,6 +216,93 @@ CHILD_SUFFIXES = [
     "Central Region", "Southwest District", "Upper Midwest Branch",
 ]
 
+# ── Subcategory lookup ────────────────────────────────────────────────────────
+
+# Retail: exact base-name → subcategory
+RETAIL_SUBCATEGORIES = {
+    "Blue Ridge Grocery Chain":       "Grocery",
+    "Broadleaf Book & Media":         "Books & Media",
+    "Cedar Point Convenience Stores": "Convenience Store",
+    "Clearfield Auto Parts":          "Automotive Parts",
+    "Coastal Home Furnishings":       "Home Furnishings",
+    "Cornerstone Pharmacy Group":     "Pharmacy",
+    "Crestwood Department Stores":    "Department Store",
+    "Frontier Grocery Co.":           "Grocery",
+    "Goldstone Jewelry Retail":       "Jewelry",
+    "Harborside Retail Group":        "General Retail",
+    "Highfield Consumer Goods":       "General Retail",
+    "Irongate Office Supplies":       "Office Supplies",
+    "Keystone Apparel Group":         "Apparel",
+    "Lakewood Consumer Electronics":  "Electronics",
+    "Maple Street Market":            "Grocery",
+    "Millstone Department Stores":    "Department Store",
+    "Northgate Supermarkets":         "Grocery",
+    "Prairie Home Centers":           "Home Improvement",
+    "Redwood Specialty Foods":        "Specialty Foods",
+    "Ridgeline Sporting Goods":       "Sporting Goods",
+    "Silverline Home Goods":          "Home Goods",
+    "Skyline Electronics":            "Electronics",
+    "Summit Outdoor Retailers":       "Outdoor & Sporting",
+    "Sunstone Pet Supplies":          "Pet Supplies",
+    "Westbrook Flooring & Design":    "Flooring & Design",
+}
+
+
+def _healthcare_subcat(name: str) -> str:
+    if "Health System"        in name: return "Health System"
+    if "Regional Medical"     in name: return "Medical Center"
+    if "Medical Center"       in name: return "Medical Center"
+    if "Community Hospital"   in name: return "Community Hospital"
+    if "Regional Hospital"    in name: return "Regional Hospital"
+    if "Hospital"             in name: return "Hospital"
+    if "Health Network"       in name: return "Health Network"
+    if "Health Partners"      in name: return "Health Partners"
+    if "Health Group"         in name: return "Health Group"
+    if "Health Alliance"      in name: return "Health Alliance"
+    if "Medical Alliance"     in name: return "Health Alliance"
+    if "Medical Group"        in name: return "Medical Group"
+    if "Medical Partners"     in name: return "Medical Group"
+    if "Medical Associates"   in name: return "Medical Associates"
+    if "Healthcare"           in name: return "Healthcare Group"
+    return "Healthcare"
+
+
+def _government_subcat(name: str) -> str:
+    if name.startswith("City of"):               return "City Government"
+    if "County" in name:                         return "County Government"
+    if "Department of Transportation" in name:   return "State Transportation"
+    if "Department of Revenue" in name:          return "State Revenue"
+    if "Department of Health" in name:           return "State Health"
+    if "Department of IT" in name:               return "State Technology"
+    if "Department of Education" in name:        return "State Education"
+    if "Health Services" in name:                return "State Health"
+    return "State Government"
+
+
+def _customer_service_subcat(name: str) -> str:
+    if "BPO" in name:                            return "Business Process Outsourcing"
+    if "Contact" in name:                        return "Contact Center"
+    if "Customer Care" in name:                  return "Customer Care"
+    if "Customer Solutions" in name:             return "Customer Care"
+    if "Customer Services" in name:              return "Customer Care"
+    if "Support" in name:                        return "Technical Support"
+    if "Service" in name:                        return "Service Operations"
+    return "Customer Service"
+
+
+def get_subcategory(name: str, industry: str) -> str:
+    """Return the subcategory for an account, stripping child suffixes first."""
+    base = name.split(" - ")[0]          # strip "- Northeast Division" etc.
+    if industry == "Retail":
+        return RETAIL_SUBCATEGORIES.get(base, "General Retail")
+    if industry == "Healthcare":
+        return _healthcare_subcat(base)
+    if industry == "Government":
+        return _government_subcat(base)
+    if industry == "Customer Service":
+        return _customer_service_subcat(base)
+    return industry
+
 
 def rand_revenue(industry):
     lo, hi = REVENUE_RANGES[industry]
@@ -256,6 +343,7 @@ def build_accounts():
                 "account_id":           f"ACC-{counter:04d}",
                 "account_name":         name,
                 "industry":             industry,
+                "subcategory":          get_subcategory(name, industry),
                 "annual_revenue":       rand_revenue(industry),
                 "number_of_employees":  rand_employees(industry),
                 "parent_account_id":    "",
@@ -287,10 +375,12 @@ def build_accounts():
             addr = pick_address(a["industry"], exclude=parent_addr)
             child_rev = round(a["annual_revenue"] * random.uniform(0.05, 0.30) / 1_000_000) * 1_000_000
             child_emp = max(25, round(a["number_of_employees"] * random.uniform(0.05, 0.25)))
+            child_name = f"{a['account_name']} - {suffix}"
             children.append({
                 "account_id":           f"ACC-{counter:04d}",
-                "account_name":         f"{a['account_name']} - {suffix}",
+                "account_name":         child_name,
                 "industry":             a["industry"],
+                "subcategory":          get_subcategory(child_name, a["industry"]),
                 "annual_revenue":       child_rev,
                 "number_of_employees":  child_emp,
                 "parent_account_id":    a["account_id"],
@@ -314,7 +404,7 @@ def main():
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
 
     fieldnames = [
-        "account_id", "account_name", "industry",
+        "account_id", "account_name", "industry", "subcategory",
         "annual_revenue", "number_of_employees", "parent_account_id",
         "street_address", "city", "state", "zip_code",
         "latitude", "longitude",
