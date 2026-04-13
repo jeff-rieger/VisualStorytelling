@@ -1,0 +1,157 @@
+account_id,account_name,industry,annual_revenue,number_of_employees,parent_account_id,street_address,city,state,zip_code,latitude,longitude
+ACC-0001,Northstar Health System,Healthcare,4877000000,18731,,1 Barnes Jewish Hospital Plaza,St. Louis,MO,63110,38.6351,-90.2634
+ACC-0002,Meridian Medical Center,Healthcare,103000000,10963,,1600 N Capitol St NW,Washington,DC,20001,38.9027,-77.0085
+ACC-0003,Cascade Regional Hospital,Healthcare,3512000000,22798,,2100 Harrisburg Pike,Columbus,OH,43223,39.949,-83.0708
+ACC-0004,Pinnacle Healthcare Group,Healthcare,2326000000,10689,,10 Brookline Pl W,Brookline,MA,02445,42.3317,-71.1218
+ACC-0005,Summit Health Network,Healthcare,1813000000,22559,,4000 Losantiville Ave,Cincinnati,OH,45236,39.2116,-84.4249
+ACC-0006,Lakeview Medical Partners,Healthcare,887000000,6578,,4150 Regent Blvd,Irving,TX,75038,32.8704,-97.0105
+ACC-0007,BlueCrest Health System,Healthcare,3162000000,6838,,701 W Bayshore Blvd,Tampa,FL,33606,27.9297,-82.4637
+ACC-0008,Harborview Medical Center,Healthcare,2990000000,23041,,1 Hospital Dr,Columbia,MO,65212,38.9404,-92.3279
+ACC-0009,Riverside Community Hospital,Healthcare,4995000000,17835,,475 University Ave,Sacramento,CA,95825,38.5702,-121.4143
+ACC-0010,Greenfield Health Partners,Healthcare,405000000,48323,,2000 Lakeshore Dr,New Orleans,LA,70112,29.9793,-90.0925
+ACC-0011,Apex Medical Associates,Healthcare,3813000000,35642,,1800 Harrison St,Oakland,CA,94612,37.8044,-122.2712
+ACC-0012,Cornerstone Health Network,Healthcare,1072000000,25307,,600 Hugh Wallis Rd S,Lafayette,LA,70508,30.1711,-92.0534
+ACC-0013,Paramount Health System,Healthcare,695000000,36678,,2051 W Martin Luther King Jr Blvd,Los Angeles,CA,90062,34.0102,-118.3072
+ACC-0014,Ironwood Medical Center,Healthcare,2451000000,41698,,100 N Academy Ave,Danville,PA,17822,40.9654,-76.6124
+ACC-0015,Cedar Valley Hospital,Healthcare,3012000000,38337,,1515 Holcombe Blvd,Houston,TX,77030,29.7072,-95.3979
+ACC-0016,Sycamore Health Group,Healthcare,1625000000,46674,,750 Washington St,Boston,MA,02111,42.3494,-71.0641
+ACC-0017,Coastal Medical Alliance,Healthcare,619000000,3503,,300 Longwood Ave,Boston,MA,02115,42.3372,-71.1065
+ACC-0018,Ridgemont Healthcare,Healthcare,1916000000,19465,,3841 Roger Brooke Dr,San Antonio,TX,78234,29.4941,-98.4369
+ACC-0019,Clearwater Health System,Healthcare,703000000,15756,,500 University Dr,Hershey,PA,17033,40.2771,-76.6465
+ACC-0020,Oakwood Medical Center,Healthcare,877000000,25411,,2200 W Harrison St,Chicago,IL,60612,41.8739,-87.6826
+ACC-0021,Highpoint Health Partners,Healthcare,2327000000,30214,,3710 SW US Veterans Hospital Rd,Portland,OR,97239,45.4977,-122.6854
+ACC-0022,Millbrook Medical Group,Healthcare,3038000000,11159,,5323 Harry Hines Blvd,Dallas,TX,75390,32.8131,-96.8416
+ACC-0023,Silverstone Health Network,Healthcare,3082000000,23783,,3601 4th Ave S,Minneapolis,MN,55409,44.9261,-93.2654
+ACC-0024,Elmwood Regional Medical Center,Healthcare,1766000000,44420,,111 Michigan Ave NW,Washington,DC,20010,38.9303,-77.0308
+ACC-0025,Bridgewater Health System,Healthcare,2237000000,46494,,3300 Gallows Rd,Falls Church,VA,22042,38.8756,-77.1897
+ACC-0026,Falcon Medical Associates,Healthcare,634000000,40420,,1 Medical Center Blvd,Winston-Salem,NC,27157,36.1346,-80.3413
+ACC-0027,Stonegate Healthcare,Healthcare,1451000000,35505,,100 Medical Center Blvd,Conroe,TX,77304,30.3321,-95.4897
+ACC-0028,Horizon Health Alliance,Healthcare,2055000000,11208,,550 First Ave,New York,NY,10016,40.7419,-73.9744
+ACC-0029,Keystone Medical Center,Healthcare,3836000000,25367,,9500 Euclid Ave,Cleveland,OH,44195,41.5021,-81.6208
+ACC-0030,Sunridge Health System,Healthcare,2261000000,42443,,2222 Philadelphia Dr,Dayton,OH,45406,39.7762,-84.2285
+ACC-0031,City of Phoenix General Services,Government,391000000,18494,,4201 E Arkansas Ave,Denver,CO,80222,39.6775,-104.9394
+ACC-0032,Harris County Administration,Government,285000000,8709,,200 Piedmont Ave SE,Atlanta,GA,30334,33.749,-84.388
+ACC-0033,Ohio Department of Health,Government,392000000,19255,,200 W Washington St,Phoenix,AZ,85003,33.4484,-112.074
+ACC-0034,City of Denver Public Works,Government,229000000,19221,,246 N High St,Columbus,OH,43215,39.9612,-82.9988
+ACC-0035,Maricopa County Government,Government,214000000,11961,,500 W Temple St,Los Angeles,CA,90012,34.0522,-118.2437
+ACC-0036,Virginia Department of IT,Government,122000000,4632,,658 Cedar St,St. Paul,MN,55155,44.9537,-93.09
+ACC-0037,City of Seattle Finance,Government,270000000,16271,,516 3rd Ave,Seattle,WA,98104,47.608,-122.333
+ACC-0038,Cook County Administration,Government,56000000,1643,,600 4th Ave,Seattle,WA,98104,47.6062,-122.3321
+ACC-0039,Georgia Department of Revenue,Government,450000000,3692,,200 E Washington St,Indianapolis,IN,46204,39.7684,-86.1581
+ACC-0040,City of Charlotte Planning,Government,88000000,5342,,1 Public Square,Nashville,TN,37201,36.1627,-86.7816
+ACC-0041,Hillsborough County Government,Government,415000000,13933,,1100 E Main St,Richmond,VA,23219,37.5407,-77.436
+ACC-0042,Minnesota Health Services,Government,315000000,2181,,600 E 4th St,Charlotte,NC,28202,35.2271,-80.8431
+ACC-0043,City of Columbus Administration,Government,207000000,12604,,1437 Bannock St,Denver,CO,80202,39.7392,-104.9903
+ACC-0044,Los Angeles County Services,Government,315000000,15437,,312 Rosa Parks Ave,Nashville,TN,37243,36.166,-86.784
+ACC-0045,Colorado Department of Transportation,Government,280000000,8338,,301 W Jefferson St,Phoenix,AZ,85003,33.45,-112.0745
+ACC-0046,City of Nashville Public Safety,Government,293000000,476,,90 W Broad St,Columbus,OH,43215,39.958,-83.001
+ACC-0047,King County Government,Government,358000000,3853,,1801 W Jefferson St,Phoenix,AZ,85007,33.444,-112.09
+ACC-0048,Wisconsin Department of Education,Government,359000000,17695,,436 Grant St,Pittsburgh,PA,15219,40.4406,-79.9959
+ACC-0049,City of Indianapolis Administration,Government,394000000,8843,,301 W 2nd St,Austin,TX,78701,30.2672,-97.7431
+ACC-0050,Allegheny County Services,Government,403000000,11246,,1001 Preston St,Houston,TX,77002,29.7599,-95.3677
+ACC-0051,Arizona Department of Transportation,Government,67000000,9717,,601 E Kennedy Blvd,Tampa,FL,33602,27.9506,-82.4572
+ACC-0052,City of Jacksonville Finance,Government,232000000,5282,,117 W Duval St,Jacksonville,FL,32202,30.3322,-81.6557
+ACC-0053,Sacramento County Administration,Government,242000000,206,,69 W Washington St,Chicago,IL,60602,41.8827,-87.6298
+ACC-0054,Tennessee Department of Health,Government,498000000,8730,,201 W Washington Ave,Madison,WI,53703,43.0731,-89.4012
+ACC-0055,City of Austin Smart City Initiative,Government,266000000,5954,,700 H St,Sacramento,CA,95814,38.5816,-121.4944
+ACC-0056,Harborside Retail Group,Retail,9315000000,10522,,8500 Freeport Pkwy,Irving,TX,75063,32.875,-97.015
+ACC-0057,Crestwood Department Stores,Retail,1423000000,96132,,1000 Abernathy Rd NE,Atlanta,GA,30328,33.9304,-84.3733
+ACC-0058,Frontier Grocery Co.,Retail,7982000000,9271,,7000 Target Pkwy N,Brooklyn Park,MN,55445,45.0941,-93.3669
+ACC-0059,Silverline Home Goods,Retail,8747000000,16683,,2100 McKinney Ave,Dallas,TX,75201,32.8007,-96.8001
+ACC-0060,Maple Street Market,Retail,2123000000,86674,,3800 Golf Rd,Rolling Meadows,IL,60008,42.075,-88.0162
+ACC-0061,Keystone Apparel Group,Retail,7807000000,72263,,701 5th Ave,New York,NY,10022,40.7614,-73.9776
+ACC-0062,Summit Outdoor Retailers,Retail,2725000000,34941,,100 SE Main St,Portland,OR,97214,45.5051,-122.675
+ACC-0063,Lakewood Consumer Electronics,Retail,8665000000,79707,,2001 S 1st St,Austin,TX,78704,30.25,-97.75
+ACC-0064,Ridgeline Sporting Goods,Retail,6952000000,27960,,200 S Biscayne Blvd,Miami,FL,33131,25.7617,-80.1918
+ACC-0065,Coastal Home Furnishings,Retail,8855000000,99194,,4000 Meridian Blvd,Franklin,TN,37067,35.9251,-86.8689
+ACC-0066,Prairie Home Centers,Retail,3315000000,93647,,500 Commerce St,Dallas,TX,75202,32.7767,-96.797
+ACC-0067,Irongate Office Supplies,Retail,5127000000,52496,,1 Walmart Way,Bentonville,AR,72712,36.3729,-94.2088
+ACC-0068,Blue Ridge Grocery Chain,Retail,6138000000,57622,,2200 Mission College Blvd,Santa Clara,CA,95054,37.3875,-121.9693
+ACC-0069,Cornerstone Pharmacy Group,Retail,8499000000,59377,,1600 Chamberlain Ave,Charlottesville,VA,22903,38.0293,-78.4767
+ACC-0070,Millstone Department Stores,Retail,2002000000,32693,,800 N Glebe Rd,Arlington,VA,22203,38.8816,-77.1
+ACC-0071,Highfield Consumer Goods,Retail,3701000000,8592,,3030 LBJ Freeway,Dallas,TX,75234,32.9191,-96.8985
+ACC-0072,Clearfield Auto Parts,Retail,5559000000,2957,,11 Harbor Park Dr,Port Washington,NY,11050,40.8257,-73.6985
+ACC-0073,Goldstone Jewelry Retail,Retail,9658000000,72803,,1020 N Main St,Ann Arbor,MI,48104,42.2808,-83.743
+ACC-0074,Westbrook Flooring & Design,Retail,3790000000,77328,,1000 Corporate Dr,Canonsburg,PA,15317,40.2615,-80.1876
+ACC-0075,Northgate Supermarkets,Retail,3628000000,1142,,1805 Old Alabama Rd,Roswell,GA,30076,34.0232,-84.3616
+ACC-0076,Cedar Point Convenience Stores,Retail,1183000000,92978,,100 Phoenix Dr,Warren,NJ,07059,40.6295,-74.5046
+ACC-0077,Skyline Electronics,Retail,984000000,30207,,4100 Chapel Hill Blvd,Durham,NC,27707,35.994,-78.9
+ACC-0078,Broadleaf Book & Media,Retail,1124000000,4317,,1200 Eastport Plaza Dr,Collinsville,IL,62234,38.6705,-89.9845
+ACC-0079,Redwood Specialty Foods,Retail,5433000000,9487,,500 Westlake Ave N,Seattle,WA,98109,47.6283,-122.3417
+ACC-0080,Sunstone Pet Supplies,Retail,8443000000,31395,,1 AutoZone Park,Memphis,TN,38103,35.1495,-90.049
+ACC-0081,Apex Contact Solutions,Customer Service,349000000,1712,,1 Gateway Center,Pittsburgh,PA,15222,40.4406,-79.9959
+ACC-0082,Meridian Customer Care,Customer Service,36000000,6696,,3000 Kellway Dr,Carrollton,TX,75006,32.9537,-96.8903
+ACC-0083,Nexus Support Services,Customer Service,377000000,5659,,One Convergys Way,Cincinnati,OH,45201,39.1031,-84.512
+ACC-0084,Pinnacle BPO Group,Customer Service,414000000,1890,,100 Granton Dr,Richmond Hill,GA,31324,31.9246,-81.2951
+ACC-0085,Clearbridge Service Centers,Customer Service,132000000,3239,,100 Winners Circle,Brentwood,TN,37027,36.034,-86.7835
+ACC-0086,Vantage Customer Solutions,Customer Service,102000000,8886,,300 E John Carpenter Fwy,Irving,TX,75062,32.814,-96.9489
+ACC-0087,Horizon Contact Group,Customer Service,234000000,2396,,2200 W Airfield Dr,DFW Airport,TX,75261,32.8998,-97.0403
+ACC-0088,Streamline Support Inc.,Customer Service,221000000,3106,,1100 Reynolds Blvd,Winston-Salem,NC,27105,36.1046,-80.2441
+ACC-0089,Crestview Service Partners,Customer Service,147000000,7679,,6800 Cintas Blvd,Mason,OH,45040,39.3601,-84.3097
+ACC-0090,Summit BPO Alliance,Customer Service,132000000,1335,,100 Centerview Dr,Brentwood,TN,37027,36.0331,-86.7828
+ACC-0091,Bridgepoint Customer Care,Customer Service,231000000,9116,,800 N Frederick Ave,Gaithersburg,MD,20879,39.1434,-77.2014
+ACC-0092,Keystone Contact Services,Customer Service,55000000,928,,4600 Fuller Dr,Irving,TX,75038,32.8704,-97.02
+ACC-0093,Ironwood Support Group,Customer Service,338000000,8956,,3800 Howard Hughes Pkwy,Las Vegas,NV,89169,36.1699,-115.1398
+ACC-0094,Northstar Service Solutions,Customer Service,433000000,341,,5601 Broadmoor St,Mission,KS,66202,39.0278,-94.6558
+ACC-0095,Lakewood Contact Center,Customer Service,52000000,3972,,6200 Sprint Pkwy,Overland Park,KS,66251,38.8814,-94.7197
+ACC-0096,Ridgemont BPO Services,Customer Service,90000000,6758,,600 17th St,Denver,CO,80202,39.7392,-104.9903
+ACC-0097,Coastal Support Group,Customer Service,253000000,7986,,1300 I St NW,Washington,DC,20005,38.9027,-77.0085
+ACC-0098,Silvercreek Customer Services,Customer Service,114000000,6670,,5000 T-Rex Ave,Boca Raton,FL,33431,26.3683,-80.1289
+ACC-0099,Prairie Contact Solutions,Customer Service,467000000,1060,,2511 Garden Rd,Monterey,CA,93940,36.6002,-121.8947
+ACC-0100,Westfield Service Alliance,Customer Service,89000000,6309,,1 Allied Dr,Little Rock,AR,72202,34.7465,-92.2896
+ACC-0101,Northstar Health System - Southeast Region,Healthcare,327000000,4165,ACC-0001,1 Barnes Jewish Hospital Plaza,St. Louis,MO,63110,38.6351,-90.2634
+ACC-0102,Riverside Community Hospital - Southeast Region,Healthcare,973000000,1034,ACC-0009,3300 Gallows Rd,Falls Church,VA,22042,38.8756,-77.1897
+ACC-0103,Riverside Community Hospital - Central Region,Healthcare,773000000,2974,ACC-0009,2200 W Harrison St,Chicago,IL,60612,41.8739,-87.6826
+ACC-0104,Greenfield Health Partners - Pacific Division,Healthcare,93000000,4723,ACC-0010,100 N Academy Ave,Danville,PA,17822,40.9654,-76.6124
+ACC-0105,Greenfield Health Partners - Gulf Coast Branch,Healthcare,34000000,8655,ACC-0010,1 Hospital Dr,Columbia,MO,65212,38.9404,-92.3279
+ACC-0106,Greenfield Health Partners - Western Region,Healthcare,52000000,9683,ACC-0010,1600 N Capitol St NW,Washington,DC,20001,38.9027,-77.0085
+ACC-0107,Paramount Health System - Northeast Division,Healthcare,143000000,5964,ACC-0013,1600 N Capitol St NW,Washington,DC,20001,38.9027,-77.0085
+ACC-0108,Ironwood Medical Center - Southeast Region,Healthcare,253000000,4297,ACC-0014,3710 SW US Veterans Hospital Rd,Portland,OR,97239,45.4977,-122.6854
+ACC-0109,Cedar Valley Hospital - Southeast Region,Healthcare,365000000,5277,ACC-0015,475 University Ave,Sacramento,CA,95825,38.5702,-121.4143
+ACC-0110,Cedar Valley Hospital - Western Region,Healthcare,680000000,6607,ACC-0015,3710 SW US Veterans Hospital Rd,Portland,OR,97239,45.4977,-122.6854
+ACC-0111,Ridgemont Healthcare - Atlantic Division,Healthcare,542000000,1377,ACC-0018,1800 Harrison St,Oakland,CA,94612,37.8044,-122.2712
+ACC-0112,Ridgemont Healthcare - Northeast Division,Healthcare,160000000,1423,ACC-0018,5323 Harry Hines Blvd,Dallas,TX,75390,32.8131,-96.8416
+ACC-0113,Ridgemont Healthcare - Upper Midwest Branch,Healthcare,451000000,1578,ACC-0018,9500 Euclid Ave,Cleveland,OH,44195,41.5021,-81.6208
+ACC-0114,Falcon Medical Associates - Central Region,Healthcare,86000000,7579,ACC-0026,4000 Losantiville Ave,Cincinnati,OH,45236,39.2116,-84.4249
+ACC-0115,Falcon Medical Associates - Western Region,Healthcare,74000000,5970,ACC-0026,750 Washington St,Boston,MA,02111,42.3494,-71.0641
+ACC-0116,Stonegate Healthcare - Southeast Region,Healthcare,226000000,3740,ACC-0027,2222 Philadelphia Dr,Dayton,OH,45406,39.7762,-84.2285
+ACC-0117,Harris County Administration - Pacific Division,Government,24000000,2142,ACC-0032,301 W 2nd St,Austin,TX,78701,30.2672,-97.7431
+ACC-0118,Maricopa County Government - Upper Midwest Branch,Government,40000000,1621,ACC-0035,4201 E Arkansas Ave,Denver,CO,80222,39.6775,-104.9394
+ACC-0119,City of Seattle Finance - Southeast Region,Government,77000000,3062,ACC-0037,246 N High St,Columbus,OH,43215,39.9612,-82.9988
+ACC-0120,City of Charlotte Planning - Atlantic Division,Government,23000000,889,ACC-0040,1001 Preston St,Houston,TX,77002,29.7599,-95.3677
+ACC-0121,City of Nashville Public Safety - Mountain Region,Government,18000000,59,ACC-0046,301 W Jefferson St,Phoenix,AZ,85003,33.45,-112.0745
+ACC-0122,Arizona Department of Transportation - Pacific Division,Government,15000000,1782,ACC-0051,600 4th Ave,Seattle,WA,98104,47.6062,-122.3321
+ACC-0123,City of Jacksonville Finance - Atlantic Division,Government,55000000,1242,ACC-0052,436 Grant St,Pittsburgh,PA,15219,40.4406,-79.9959
+ACC-0124,City of Jacksonville Finance - Mountain Region,Government,62000000,1295,ACC-0052,69 W Washington St,Chicago,IL,60602,41.8827,-87.6298
+ACC-0125,Sacramento County Administration - Mountain Region,Government,23000000,48,ACC-0053,200 W Washington St,Phoenix,AZ,85003,33.4484,-112.074
+ACC-0126,Crestwood Department Stores - Southwest District,Retail,128000000,18290,ACC-0057,800 N Glebe Rd,Arlington,VA,22203,38.8816,-77.1
+ACC-0127,Crestwood Department Stores - Western Region,Retail,381000000,21314,ACC-0057,1600 Chamberlain Ave,Charlottesville,VA,22903,38.0293,-78.4767
+ACC-0128,Prairie Home Centers - Western Region,Retail,456000000,20051,ACC-0066,2200 Mission College Blvd,Santa Clara,CA,95054,37.3875,-121.9693
+ACC-0129,Highfield Consumer Goods - Western Region,Retail,796000000,1114,ACC-0071,1 Walmart Way,Bentonville,AR,72712,36.3729,-94.2088
+ACC-0130,Goldstone Jewelry Retail - Southeast Region,Retail,2032000000,9460,ACC-0073,11 Harbor Park Dr,Port Washington,NY,11050,40.8257,-73.6985
+ACC-0131,Goldstone Jewelry Retail - Gulf Coast Branch,Retail,1282000000,4042,ACC-0073,1000 Abernathy Rd NE,Atlanta,GA,30328,33.9304,-84.3733
+ACC-0132,Westbrook Flooring & Design - Midwest Operations,Retail,226000000,13093,ACC-0074,800 N Glebe Rd,Arlington,VA,22203,38.8816,-77.1
+ACC-0133,Westbrook Flooring & Design - Central Region,Retail,880000000,8718,ACC-0074,11 Harbor Park Dr,Port Washington,NY,11050,40.8257,-73.6985
+ACC-0134,Northgate Supermarkets - Atlantic Division,Retail,354000000,67,ACC-0075,7000 Target Pkwy N,Brooklyn Park,MN,55445,45.0941,-93.3669
+ACC-0135,Northgate Supermarkets - Southeast Region,Retail,183000000,269,ACC-0075,100 SE Main St,Portland,OR,97214,45.5051,-122.675
+ACC-0136,Northgate Supermarkets - Mountain Region,Retail,804000000,272,ACC-0075,1000 Abernathy Rd NE,Atlanta,GA,30328,33.9304,-84.3733
+ACC-0137,Skyline Electronics - Southwest District,Retail,66000000,5523,ACC-0077,100 SE Main St,Portland,OR,97214,45.5051,-122.675
+ACC-0138,Skyline Electronics - Western Region,Retail,202000000,5518,ACC-0077,3800 Golf Rd,Rolling Meadows,IL,60008,42.075,-88.0162
+ACC-0139,Skyline Electronics - Pacific Division,Retail,226000000,3325,ACC-0077,500 Westlake Ave N,Seattle,WA,98109,47.6283,-122.3417
+ACC-0140,Redwood Specialty Foods - Southwest District,Retail,818000000,1035,ACC-0079,3800 Golf Rd,Rolling Meadows,IL,60008,42.075,-88.0162
+ACC-0141,Redwood Specialty Foods - Mountain Region,Retail,532000000,1736,ACC-0079,1020 N Main St,Ann Arbor,MI,48104,42.2808,-83.743
+ACC-0142,Meridian Customer Care - Southwest District,Customer Service,7000000,879,ACC-0082,1 Gateway Center,Pittsburgh,PA,15222,40.4406,-79.9959
+ACC-0143,Meridian Customer Care - Midwest Operations,Customer Service,5000000,616,ACC-0082,3000 Kellway Dr,Carrollton,TX,75006,32.9537,-96.8903
+ACC-0144,Nexus Support Services - Central Region,Customer Service,60000000,1048,ACC-0083,800 N Frederick Ave,Gaithersburg,MD,20879,39.1434,-77.2014
+ACC-0145,Nexus Support Services - Southwest District,Customer Service,63000000,1303,ACC-0083,100 Granton Dr,Richmond Hill,GA,31324,31.9246,-81.2951
+ACC-0146,Nexus Support Services - Pacific Division,Customer Service,81000000,604,ACC-0083,100 Winners Circle,Brentwood,TN,37027,36.034,-86.7835
+ACC-0147,Vantage Customer Solutions - Southwest District,Customer Service,26000000,1779,ACC-0086,2200 W Airfield Dr,DFW Airport,TX,75261,32.8998,-97.0403
+ACC-0148,Vantage Customer Solutions - Central Region,Customer Service,11000000,798,ACC-0086,6800 Cintas Blvd,Mason,OH,45040,39.3601,-84.3097
+ACC-0149,Vantage Customer Solutions - Pacific Division,Customer Service,6000000,2193,ACC-0086,3000 Kellway Dr,Carrollton,TX,75006,32.9537,-96.8903
+ACC-0150,Northstar Service Solutions - Southeast Region,Customer Service,43000000,65,ACC-0094,600 17th St,Denver,CO,80202,39.7392,-104.9903
+ACC-0151,Northstar Service Solutions - Great Plains Branch,Customer Service,65000000,27,ACC-0094,2511 Garden Rd,Monterey,CA,93940,36.6002,-121.8947
+ACC-0152,Northstar Service Solutions - Mountain Region,Customer Service,118000000,76,ACC-0094,3000 Kellway Dr,Carrollton,TX,75006,32.9537,-96.8903
+ACC-0153,Coastal Support Group - Mountain Region,Customer Service,24000000,1929,ACC-0097,3800 Howard Hughes Pkwy,Las Vegas,NV,89169,36.1699,-115.1398
+ACC-0154,Westfield Service Alliance - Great Plains Branch,Customer Service,25000000,469,ACC-0100,3800 Howard Hughes Pkwy,Las Vegas,NV,89169,36.1699,-115.1398
+ACC-0155,Westfield Service Alliance - Northeast Division,Customer Service,22000000,1158,ACC-0100,1300 I St NW,Washington,DC,20005,38.9027,-77.0085
+ACC-0156,Westfield Service Alliance - Atlantic Division,Customer Service,18000000,1514,ACC-0100,4600 Fuller Dr,Irving,TX,75038,32.8704,-97.02
