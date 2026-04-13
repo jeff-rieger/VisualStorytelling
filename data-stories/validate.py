@@ -277,7 +277,10 @@ def page_map_view(sid):
     cb_vals  = [b * 1e9 for b in range(0, max_b + 1, step_b)]
     cb_text  = ["$0" if v == 0 else f"${int(v/1e9)}B" for v in cb_vals]
 
-    fig = px.scatter_mapbox(
+    # scatter_geo uses Plotly's built-in Natural Earth vector data:
+    # crisp state/province polygon fills + borders, no rivers or city labels,
+    # Canada and Mexico with subdivisions — matches the ESRI Light Gray look.
+    fig = px.scatter_geo(
         df,
         lat="latitude",
         lon="longitude",
@@ -285,9 +288,6 @@ def page_map_view(sid):
         color_continuous_scale=[[0, "#ABABAB"], [0.4, "#E07020"], [1, "#FF5500"]],
         size="annual_revenue",
         size_max=18,
-        zoom=3.4,
-        center={"lat": 38.5, "lon": -96.5},
-        mapbox_style="white-bg",
         hover_name="account_name",
         custom_data=[
             "street_address", "city", "state",
@@ -295,25 +295,34 @@ def page_map_view(sid):
         ],
     )
 
-    # Two ESRI Canvas layers stacked below the data traces:
-    #   Base      — land/water background, no rivers or terrain
-    #   Reference — administrative boundary lines only (country, state,
-    #               province borders) plus minimal labels; no rivers
-    ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas"
-    fig.update_layout(
-        mapbox_layers=[
-            {
-                "below": "traces",
-                "sourcetype": "raster",
-                "sourceattribution": "Esri, HERE, Garmin, FAO, NOAA, USGS",
-                "source": [f"{ESRI}/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}"],
-            },
-            {
-                "below": "traces",
-                "sourcetype": "raster",
-                "source": [f"{ESRI}/World_Light_Gray_Reference/MapServer/tile/{{z}}/{{y}}/{{x}}"],
-            },
-        ]
+    fig.update_geos(
+        # Viewport: continental US + southern Canada + northern Mexico
+        lataxis_range=[22, 57],
+        lonaxis_range=[-132, -62],
+        projection_type="mercator",
+        # Land / water
+        showland=True,
+        landcolor="#f0f0eb",
+        showocean=True,
+        oceancolor="#dce8f2",
+        showcoastlines=True,
+        coastlinecolor="#a0a0a0",
+        coastlinewidth=0.8,
+        # State / province fills + outlines
+        showsubunits=True,
+        subunitcolor="#c0c0c0",
+        subunitwidth=0.5,
+        # Country borders
+        showcountries=True,
+        countrycolor="#888888",
+        countrywidth=1.0,
+        # No water features
+        showrivers=False,
+        showlakes=False,
+        # Detail level (50 m Natural Earth)
+        resolution=50,
+        showframe=False,
+        bgcolor="white",
     )
 
     fig.update_traces(
