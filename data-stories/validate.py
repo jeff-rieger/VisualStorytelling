@@ -295,18 +295,25 @@ def page_map_view(sid):
         ],
     )
 
-    # ESRI World Light Gray Canvas — shows country/state/province borders,
-    # no rivers, no terrain. Free tile service, no API key required.
+    # Two ESRI Canvas layers stacked below the data traces:
+    #   Base      — land/water background, no rivers or terrain
+    #   Reference — administrative boundary lines only (country, state,
+    #               province borders) plus minimal labels; no rivers
+    ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas"
     fig.update_layout(
-        mapbox_layers=[{
-            "below": "traces",
-            "sourcetype": "raster",
-            "sourceattribution": "Esri, HERE, Garmin, FAO, NOAA, USGS",
-            "source": [
-                "https://server.arcgisonline.com/ArcGIS/rest/services/"
-                "Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-            ],
-        }]
+        mapbox_layers=[
+            {
+                "below": "traces",
+                "sourcetype": "raster",
+                "sourceattribution": "Esri, HERE, Garmin, FAO, NOAA, USGS",
+                "source": [f"{ESRI}/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}"],
+            },
+            {
+                "below": "traces",
+                "sourcetype": "raster",
+                "source": [f"{ESRI}/World_Light_Gray_Reference/MapServer/tile/{{z}}/{{y}}/{{x}}"],
+            },
+        ]
     )
 
     fig.update_traces(
