@@ -277,7 +277,7 @@ def page_map_view(sid):
     cb_vals  = [b * 1e9 for b in range(0, max_b + 1, step_b)]
     cb_text  = ["$0" if v == 0 else f"${int(v/1e9)}B" for v in cb_vals]
 
-    fig = px.scatter_geo(
+    fig = px.scatter_mapbox(
         df,
         lat="latitude",
         lon="longitude",
@@ -285,7 +285,9 @@ def page_map_view(sid):
         color_continuous_scale=[[0, "#ABABAB"], [0.4, "#E07020"], [1, "#FF5500"]],
         size="annual_revenue",
         size_max=18,
-        scope="usa",
+        zoom=3.4,
+        center={"lat": 38.5, "lon": -96.5},
+        mapbox_style="white-bg",
         hover_name="account_name",
         custom_data=[
             "street_address", "city", "state",
@@ -293,20 +295,18 @@ def page_map_view(sid):
         ],
     )
 
-    fig.update_geos(
-        scope="usa",
-        showland=True,
-        landcolor="#f5f5f5",
-        showcoastlines=True,
-        coastlinecolor="#aaaaaa",
-        coastlinewidth=0.8,
-        showsubunits=True,       # state outlines
-        subunitcolor="#bbbbbb",
-        subunitwidth=0.5,
-        showrivers=False,
-        showlakes=False,
-        showframe=False,
-        bgcolor="white",
+    # ESRI World Light Gray Canvas — shows country/state/province borders,
+    # no rivers, no terrain. Free tile service, no API key required.
+    fig.update_layout(
+        mapbox_layers=[{
+            "below": "traces",
+            "sourcetype": "raster",
+            "sourceattribution": "Esri, HERE, Garmin, FAO, NOAA, USGS",
+            "source": [
+                "https://server.arcgisonline.com/ArcGIS/rest/services/"
+                "Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+            ],
+        }]
     )
 
     fig.update_traces(
