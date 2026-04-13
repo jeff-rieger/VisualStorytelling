@@ -166,10 +166,10 @@ def load_monthly_pipeline_from_csv(sid):
 @st.cache_data(show_spinner=False)
 def load_pipeline_by_close_date(sid):
     """
-    For the animated close-date view.
+    For the animated close-date / months-to-close views.
     Returns a DataFrame with columns:
-      month_start (datetime), month_label (str), ENDING_CLOSE_DATE (datetime),
-      industry, ENDING_WEIGHTED_AMOUNT
+      month_start (datetime), month_label (str), ENDING_CLOSE_DATE (datetime, month-level),
+      months_to_close (int), industry, ENDING_WEIGHTED_AMOUNT
     Sorted chronologically so animation frames play in order.
     """
     pivot = load_csv(data_path(sid, "processed", "OppFieldHist_Pivot.csv"))
@@ -179,13 +179,23 @@ def load_pipeline_by_close_date(sid):
     pivot["month_start"]       = pd.to_datetime(pivot["MONTH_START"])
     pivot["ENDING_CLOSE_DATE"] = pd.to_datetime(pivot["ENDING_CLOSE_DATE"])
 
+    # Aggregate close dates to month level
+    pivot["close_month"] = pivot["ENDING_CLOSE_DATE"].dt.to_period("M").dt.to_timestamp()
+
     agg = (
-        pivot.groupby(["month_start", "ENDING_CLOSE_DATE", "industry"])["ENDING_WEIGHTED_AMOUNT"]
+        pivot.groupby(["month_start", "close_month", "industry"])["ENDING_WEIGHTED_AMOUNT"]
         .sum()
         .reset_index()
+        .rename(columns={"close_month": "ENDING_CLOSE_DATE"})
     )
     agg = agg.sort_values(["month_start", "ENDING_CLOSE_DATE"])
     agg["month_label"] = agg["month_start"].dt.strftime("%b %Y")
+
+    # Months to close: integer difference between close month and snapshot month
+    agg["months_to_close"] = (
+        (agg["ENDING_CLOSE_DATE"].dt.year - agg["month_start"].dt.year) * 12
+        + (agg["ENDING_CLOSE_DATE"].dt.month - agg["month_start"].dt.month)
+    )
     return agg
 
 
@@ -656,7 +666,7 @@ def page_pipeline_history(sid):
         st.markdown("<br>", unsafe_allow_html=True)
         xaxis_choice = st.selectbox(
             "X-axis",
-            ["Month Start", "Close Date Ending Value"],
+            ["Month Start", "Close Date Ending Value", "Months to Close Date"],
             key="pipeline_xaxis",
         )
 
@@ -758,13 +768,20 @@ def page_pipeline_history(sid):
             st.dataframe(tbl.style.format("${:,.0f}"), use_container_width=True)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # MODE B — Close Date Ending Value (animated line chart)
+    # MODE B — Close Date Ending Value (animated line chart, monthly x-axis)
+    # MODE C — Months to Close Date (animated line chart, integer x-axis)
     # ══════════════════════════════════════════════════════════════════════════
     else:
-        st.markdown(
-            "Weighted pipeline by expected close date. Each frame is one monthly snapshot — "
-            "use the play axis to animate through time."
-        )
+        if xaxis_choice == "Close Date Ending Value":
+            st.markdown(
+                "Weighted pipeline by expected close month. Each frame is one monthly snapshot — "
+                "use the play axis to animate through time."
+            )
+        else:
+            st.markdown(
+                "Weighted pipeline by months remaining until expected close, relative to each snapshot. "
+                "Each frame is one monthly snapshot — use the play axis to animate through time."
+            )
 
         speed_label = st.radio(
             "Playback speed", ["1×", "2×", "4×"],
@@ -794,15 +811,28 @@ def page_pipeline_history(sid):
             .index.tolist()
         )
 
-        # Fixed axes across all frames
-        x_min = df["ENDING_CLOSE_DATE"].min()
-        x_max = df["ENDING_CLOSE_DATE"].max()
         max_val = df["ENDING_WEIGHTED_AMOUNT"].max()
         ytick_vals, ytick_text = _ytick_format(max_val)
 
+        # X-axis config varies by mode
+        if xaxis_choice == "Close Date Ending Value":
+            x_col    = "ENDING_CLOSE_DATE"
+            x_label  = "Expected Close Month"
+            x_min    = df["ENDING_CLOSE_DATE"].min()
+            x_max    = df["ENDING_CLOSE_DATE"].max()
+            range_x  = [x_min, x_max]
+            xaxis_kw = dict(tickformat="%b '%y", showgrid=False, range=[x_min, x_max])
+        else:
+            x_col    = "months_to_close"
+            x_label  = "Months to Close"
+            x_min    = int(df["months_to_close"].min())
+            x_max    = int(df["months_to_close"].max())
+            range_x  = [x_min, x_max]
+            xaxis_kw = dict(showgrid=False, range=[x_min, x_max], dtick=3, ticksuffix=" mo")
+
         fig = px.line(
             df,
-            x="ENDING_CLOSE_DATE",
+            x=x_col,
             y="ENDING_WEIGHTED_AMOUNT",
             color="industry",
             animation_frame="month_label",
@@ -812,12 +842,12 @@ def page_pipeline_history(sid):
                 "industry":    industry_order,
             },
             labels={
-                "ENDING_CLOSE_DATE":      "Expected Close Date",
+                x_col:                    x_label,
                 "ENDING_WEIGHTED_AMOUNT": "Weighted Pipeline",
                 "industry":               "Industry",
                 "month_label":            "Snapshot Month",
             },
-            range_x=[x_min, x_max],
+            range_x=range_x,
             range_y=[0, max_val * 1.08],
         )
 
@@ -834,7 +864,7 @@ def page_pipeline_history(sid):
                 bgcolor="rgba(255,255,255,0.85)",
                 bordercolor="#e0e0e0", borderwidth=1,
             ),
-            xaxis=dict(tickformat="%b '%y", showgrid=False, range=[x_min, x_max]),
+            xaxis=xaxis_kw,
             yaxis=dict(
                 title="Weighted Pipeline",
                 tickvals=ytick_vals, ticktext=ytick_text,
