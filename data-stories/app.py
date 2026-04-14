@@ -1860,17 +1860,40 @@ def page_waterfall(sid):
     )
 
     # ── Chart ─────────────────────────────────────────────────────────────
-    fig = go.Figure(go.Waterfall(
-        orientation="v",
-        measure=measures,
-        x=labels,
-        y=values,
-        text=bar_texts,
-        textposition="outside",
-        connector=dict(line=dict(color="rgba(80,80,80,0.55)", dash="dot", width=1.5)),
-        marker=dict(color=bar_colors),
+    # go.Waterfall dropped marker/marker_color support in recent Plotly versions.
+    # Use the classic stacked-bar waterfall trick instead: an invisible base bar
+    # offsets each visible bar to the correct running-total position.
+    _sv = float(d["starting"])
+    _nv = float(d["new"])
+    _av = float(d["advanced"])
+    _rv = float(d["reduced"])
+    _wv = float(d["won"])
+    _lv = float(d["lost"])
+    _ev = float(d["ending"])
+
+    _r1 = _sv
+    _r2 = _r1 + _nv
+    _r3 = _r2 + _av
+    _r4 = _r3 - _rv
+    _r5 = _r4 - _wv
+    _r6 = _r5 - _lv   # == ending
+
+    bar_bases   = [0.,  _r1, _r2, _r4, _r5, _r6, 0. ]
+    bar_heights = [_sv, _nv, _av, _rv, _wv, _lv, _ev]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=labels, y=bar_bases,
+        marker_color="rgba(0,0,0,0)",
+        hoverinfo="skip", showlegend=False,
+    ))
+    fig.add_trace(go.Bar(
+        x=labels, y=bar_heights,
+        marker_color=bar_colors,
+        text=bar_texts, textposition="outside",
         hovertemplate="<b>%{x}</b><br>%{customdata}<extra></extra>",
         customdata=bar_texts,
+        showlegend=False,
     ))
 
     # Y-axis ticks
@@ -1878,6 +1901,7 @@ def page_waterfall(sid):
     ytick_vals, ytick_text = _ytick_format(max_val * 1.15)
 
     fig.update_layout(
+        barmode="stack",
         height=540,
         margin={"l": 0, "r": 0, "t": 50, "b": 10},
         title=dict(
