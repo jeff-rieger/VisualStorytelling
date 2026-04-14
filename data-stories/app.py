@@ -139,6 +139,9 @@ with st.sidebar:
     if st.button("🎯  Forecast vs. Actual"):
         st.session_state.page = "forecast_vs_actual"
         st.rerun()
+    if st.button("🌊  Pipeline Waterfall"):
+        st.session_state.page = "waterfall"
+        st.rerun()
 
     st.markdown("---")
     study_titles = [s["title"] for s in CASE_STUDIES]
@@ -335,6 +338,167 @@ def load_forecast_vs_actual(sid):
     )
 
     return actual, forecast
+
+
+@st.cache_data(show_spinner=False)
+def load_waterfall_data(sid, m1_str, m2_str):
+    """
+    Compute waterfall bar values for the period [m1, m2] (first-of-month strings).
+
+    For each bar:
+      Starting  – STARTING value for existing opps (first_month < m1) active at start of m1
+      New       – STARTING value at first_month for opps created in [m1, m2]
+      Advanced  – sum of positive deltas for opps active at both start and end of period
+      Reduced   – sum of negative deltas for the same opps
+      Won       – STARTING value (at m1 or first_month) for opps that transitioned to Won
+      Lost      – same for Lost  (uses STARTING so weighted-mode shows the pipeline value lost)
+      Ending    – ENDING value for all opps still active (not Won/Lost) at m2
+
+    Math balances: Starting + New + Advanced + Reduced − Won − Lost = Ending
+
+    Returns dict[mode] where mode ∈ {"Amount", "Weighted"}, each a dict of bar → float.
+    """
+    pivot = load_csv(data_path(sid, "processed", "OppFieldHist_Pivot.csv"))
+    pivot["month_start"] = pd.to_datetime(pivot["MONTH_START"])
+
+    m1 = pd.Timestamp(m1_str)
+    m2 = pd.Timestamp(m2_str)
+
+    CLOSED_WON  = "6 - Closed Won"
+    CLOSED_LOST = "7 - Closed Lost"
+
+    # First month per opportunity
+    first_months = pivot.groupby("OPPORTUNITY_ID")["month_start"].min().rename("first_month")
+    pivot = pivot.join(first_months, on="OPPORTUNITY_ID")
+
+    piv_m1     = pivot[pivot["month_start"] == m1]
+    piv_m2     = pivot[pivot["month_start"] == m2]
+    piv_period = pivot[(pivot["month_start"] >= m1) & (pivot["month_start"] <= m2)]
+
+    # Classify won/lost transitions within the period.
+    # Only count open→Won / open→Lost (exclude already-closed starting stages).
+    won_trans = piv_period[
+        (piv_period["ENDING_STAGE"] == CLOSED_WON) &
+        (~piv_period["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]))
+    ]
+    lost_trans = piv_period[
+        (piv_period["ENDING_STAGE"] == CLOSED_LOST) &
+        (~piv_period["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]))
+    ]
+    won_ids  = set(won_trans["OPPORTUNITY_ID"])
+    lost_ids = set(lost_trans["OPPORTUNITY_ID"])
+
+    # Opps that transitioned Won→open again and are still active at m2 are not exits.
+    reopened_ids = set(piv_m2.loc[
+        piv_m2["OPPORTUNITY_ID"].isin(won_ids | lost_ids) &
+        ~piv_m2["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]) &
+        ~piv_m2["ENDING_STAGE"].isin([CLOSED_WON, CLOSED_LOST])
+    ]["OPPORTUNITY_ID"])
+    won_ids  = won_ids  - reopened_ids
+    lost_ids = lost_ids - reopened_ids
+
+    # Opps that both won AND lost during the period: treat as Lost (net outcome).
+    won_ids = won_ids - lost_ids
+
+    changed_ids = won_ids | lost_ids
+
+    # New vs existing opp sets
+    new_ids      = set(first_months[(first_months >= m1) & (first_months <= m2)].index)
+    existing_ids = set(first_months[first_months < m1].index)
+
+    result = {}
+    for mode in ("Amount", "Weighted"):
+        S = "STARTING_AMOUNT"          if mode == "Amount" else "STARTING_WEIGHTED_AMOUNT"
+        E = "ENDING_AMOUNT"            if mode == "Amount" else "ENDING_WEIGHTED_AMOUNT"
+
+        # ── Starting ─────────────────────────────────────────────────────────
+        starting = piv_m1.loc[
+            piv_m1["OPPORTUNITY_ID"].isin(existing_ids) &
+            ~piv_m1["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]),
+            S,
+        ].sum()
+
+        # ── New ───────────────────────────────────────────────────────────────
+        new_val = piv_period.loc[
+            piv_period["OPPORTUNITY_ID"].isin(new_ids) &
+            (piv_period["month_start"] == piv_period["first_month"]),
+            S,
+        ].sum()
+
+        # ── Won starting value ────────────────────────────────────────────────
+        # Only count existing opps that were open (not already closed) at m1.
+        won_exist = piv_m1.loc[
+            piv_m1["OPPORTUNITY_ID"].isin(won_ids & existing_ids) &
+            ~piv_m1["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]),
+            S,
+        ].sum()
+        won_new   = piv_period.loc[
+            piv_period["OPPORTUNITY_ID"].isin(won_ids & new_ids) &
+            (piv_period["month_start"] == piv_period["first_month"]),
+            S,
+        ].sum()
+        won_val = float(won_exist) + float(won_new)
+
+        # ── Lost starting value ───────────────────────────────────────────────
+        lost_exist = piv_m1.loc[
+            piv_m1["OPPORTUNITY_ID"].isin(lost_ids & existing_ids) &
+            ~piv_m1["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]),
+            S,
+        ].sum()
+        lost_new   = piv_period.loc[
+            piv_period["OPPORTUNITY_ID"].isin(lost_ids & new_ids) &
+            (piv_period["month_start"] == piv_period["first_month"]),
+            S,
+        ].sum()
+        lost_val = float(lost_exist) + float(lost_new)
+
+        # ── Advanced / Reduced — opps active at BOTH start and end ───────────
+        piv_m2_active = piv_m2[
+            ~piv_m2["OPPORTUNITY_ID"].isin(changed_ids) &
+            ~piv_m2["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]) &
+            ~piv_m2["ENDING_STAGE"].isin([CLOSED_WON, CLOSED_LOST])
+        ]
+        active_ids = set(piv_m2_active["OPPORTUNITY_ID"])
+
+        end_vals = piv_m2_active.set_index("OPPORTUNITY_ID")[E]
+
+        # Filter by valid STARTING_STAGE at m1 to match what Starting includes.
+        start_exist = piv_m1.loc[
+            piv_m1["OPPORTUNITY_ID"].isin(active_ids & existing_ids) &
+            ~piv_m1["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST])
+        ].set_index("OPPORTUNITY_ID")[S]
+
+        start_new = piv_period.loc[
+            piv_period["OPPORTUNITY_ID"].isin(active_ids & new_ids) &
+            (piv_period["month_start"] == piv_period["first_month"])
+        ].set_index("OPPORTUNITY_ID")[S]
+
+        start_vals = pd.concat([start_exist, start_new])
+        delta      = end_vals.subtract(start_vals, fill_value=0)
+
+        advanced = float(delta[delta > 0].sum())
+        reduced  = float(delta[delta < 0].sum())
+
+        # ── Ending ────────────────────────────────────────────────────────────
+        ending = float(
+            piv_m2.loc[
+                ~piv_m2["STARTING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]) &
+                ~piv_m2["ENDING_STAGE"].isin([CLOSED_WON, CLOSED_LOST]),
+                E
+            ].sum()
+        )
+
+        result[mode] = dict(
+            starting=float(starting),
+            new=float(new_val),
+            advanced=advanced,
+            reduced=reduced,
+            won=won_val,
+            lost=lost_val,
+            ending=ending,
+        )
+
+    return result
 
 
 @st.cache_data(show_spinner=False)
@@ -561,6 +725,18 @@ def page_home():
             use_container_width=True,
         ):
             st.session_state.page = "forecast_vs_actual"
+            st.rerun()
+
+    col7, col8, col9 = st.columns(3, gap="large")
+    with col7:
+        if st.button(
+            "🌊 Pipeline Waterfall\n\nBreaks down pipeline movement for any month "
+            "or date range: starting balance, new opportunities, stage advances & "
+            "reductions, won/lost exits, and ending balance. Amount or weighted.",
+            key="home_waterfall",
+            use_container_width=True,
+        ):
+            st.session_state.page = "waterfall"
             st.rerun()
 
     st.markdown("#### Available Case Studies")
@@ -1568,6 +1744,173 @@ def page_forecast_vs_actual(sid):
     c4.metric("Months Beating Forecast", f"{beat_months} of {len(combined)}")
 
 
+def page_waterfall(sid):
+
+    # ── Header controls ───────────────────────────────────────────────────
+    col_title, col_metric, col_period = st.columns([2, 1, 1])
+    with col_title:
+        st.title("Pipeline Waterfall")
+        st.caption(f"Case study: {selected_study['title']}")
+    with col_metric:
+        st.markdown("<br>", unsafe_allow_html=True)
+        mode = st.radio("Metric", ["Amount", "Weighted Amount"],
+                        horizontal=False, key="wf_mode")
+    with col_period:
+        st.markdown("<br>", unsafe_allow_html=True)
+        period_type = st.radio("Period", ["Monthly", "Date Range"],
+                               horizontal=False, key="wf_period")
+
+    # ── Month list from pivot ─────────────────────────────────────────────
+    raw_pivot = load_csv(data_path(sid, "processed", "OppFieldHist_Pivot.csv"))
+    month_ts_list = sorted(
+        pd.to_datetime(raw_pivot["MONTH_START"]).dt.to_period("M")
+        .dt.to_timestamp().unique()
+    )
+
+    # ── Period selectors ──────────────────────────────────────────────────
+    if period_type == "Monthly":
+        m_sel = st.selectbox(
+            "Month",
+            options=month_ts_list,
+            index=len(month_ts_list) - 1,
+            format_func=lambda ts: ts.strftime("%b %Y"),
+            key="wf_month",
+        )
+        m1 = m2 = m_sel
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            m1 = st.selectbox(
+                "Starting Month",
+                options=month_ts_list,
+                index=0,
+                format_func=lambda ts: ts.strftime("%b %Y"),
+                key="wf_start",
+            )
+        with c2:
+            m2 = st.selectbox(
+                "Ending Month",
+                options=month_ts_list,
+                index=len(month_ts_list) - 1,
+                format_func=lambda ts: ts.strftime("%b %Y"),
+                key="wf_end",
+            )
+        if m1 > m2:
+            st.warning("Starting Month must be on or before Ending Month.")
+            return
+
+    # ── Load data ─────────────────────────────────────────────────────────
+    data = load_waterfall_data(
+        sid,
+        m1.strftime("%Y-%m-%d"),
+        m2.strftime("%Y-%m-%d"),
+    )
+    mode_key = "Amount" if mode == "Amount" else "Weighted"
+    d = data[mode_key]
+
+    # ── Format helper ─────────────────────────────────────────────────────
+    def _fmt(v):
+        sign = "+" if v > 0 else ""
+        av = abs(v)
+        if av >= 1e9:
+            return f"{sign}${v/1e9:.2f}B"
+        if av >= 1e6:
+            return f"{sign}${v/1e6:.1f}M"
+        if av >= 1e3:
+            return f"{sign}${v/1e3:.0f}K"
+        return f"{''+sign}${v:,.0f}"
+
+    # Bars and values
+    labels   = ["Starting\nPipeline", "New\nOpportunities", "Advanced",
+                "Reduced",             "Won\n(Exit)",        "Lost\n(Exit)",
+                "Ending\nPipeline"]
+    measures = ["absolute", "relative", "relative",
+                "relative",  "relative", "relative",
+                "total"]
+    values   = [
+        d["starting"],
+        d["new"],
+        d["advanced"],
+        d["reduced"],
+        -d["won"],
+        -d["lost"],
+        0,              # "total" measure: Plotly computes running sum
+    ]
+    # Colors per bar
+    COLORS = {
+        "Starting\nPipeline":   "#1565C0",
+        "New\nOpportunities":   "#2E7D32",
+        "Advanced":             "#43A047",
+        "Reduced":              "#EF6C00",
+        "Won\n(Exit)":          "#6A1B9A",
+        "Lost\n(Exit)":         "#C62828",
+        "Ending\nPipeline":     "#1565C0",
+    }
+    bar_colors = [COLORS[lbl] for lbl in labels]
+
+    # Text labels (show on each bar)
+    display_vals = [d["starting"], d["new"], d["advanced"],
+                    d["reduced"], -d["won"], -d["lost"], d["ending"]]
+    bar_texts = [_fmt(v) for v in display_vals]
+
+    period_label = (
+        m1.strftime("%b %Y")
+        if m1 == m2
+        else f"{m1.strftime('%b %Y')} – {m2.strftime('%b %Y')}"
+    )
+
+    # ── Chart ─────────────────────────────────────────────────────────────
+    fig = go.Figure(go.Waterfall(
+        orientation="v",
+        measure=measures,
+        x=labels,
+        y=values,
+        text=bar_texts,
+        textposition="outside",
+        connector=dict(line=dict(color="rgba(80,80,80,0.55)", dash="dot", width=1.5)),
+        marker_color=bar_colors,
+        hovertemplate="<b>%{x}</b><br>%{customdata}<extra></extra>",
+        customdata=bar_texts,
+    ))
+
+    # Y-axis ticks
+    max_val = max(d["starting"], d["ending"], d["new"], d["won"])
+    ytick_vals, ytick_text = _ytick_format(max_val * 1.15)
+
+    fig.update_layout(
+        height=540,
+        margin={"l": 0, "r": 0, "t": 50, "b": 10},
+        title=dict(
+            text=(
+                f"Pipeline Waterfall — {period_label}"
+                + (" (Weighted)" if mode_key == "Weighted" else "")
+            ),
+            font=dict(size=14), x=0,
+        ),
+        xaxis=dict(showgrid=False, tickfont=dict(size=11)),
+        yaxis=dict(
+            tickvals=ytick_vals, ticktext=ytick_text,
+            showgrid=True, gridcolor="#f0f0f0",
+            zeroline=True, zerolinecolor="#bbbbbb", zerolinewidth=1,
+        ),
+        plot_bgcolor="white", paper_bgcolor="white",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── Summary strip ─────────────────────────────────────────────────────
+    st.markdown("---")
+    net_change = d["ending"] - d["starting"]
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Starting Pipeline", _fmt(d["starting"]).lstrip("+"))
+    c2.metric("New Opportunities",  _fmt(d["new"]).lstrip("+"))
+    c3.metric("Advanced",           _fmt(d["advanced"]).lstrip("+"))
+    c4.metric("Won (Exit)",         _fmt(d["won"]).lstrip("+"))
+    c5.metric("Lost (Exit)",        _fmt(d["lost"]).lstrip("+"))
+    c6.metric("Ending Pipeline",    _fmt(d["ending"]).lstrip("+"),
+              delta=_fmt(net_change) + " vs start")
+
+
 # ── Router ────────────────────────────────────────────────────────────────────
 page = st.session_state.page
 
@@ -1585,5 +1928,7 @@ elif page == "won_analysis":
     page_won_analysis(study_id)
 elif page == "forecast_vs_actual":
     page_forecast_vs_actual(study_id)
+elif page == "waterfall":
+    page_waterfall(study_id)
 else:
     page_home()
