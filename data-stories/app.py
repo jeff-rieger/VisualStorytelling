@@ -1868,7 +1868,7 @@ def page_waterfall(sid):
         text=bar_texts,
         textposition="outside",
         connector=dict(line=dict(color="rgba(80,80,80,0.55)", dash="dot", width=1.5)),
-        marker_color=bar_colors,
+        marker=dict(color=bar_colors),
         hovertemplate="<b>%{x}</b><br>%{customdata}<extra></extra>",
         customdata=bar_texts,
     ))
